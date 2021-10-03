@@ -1,0 +1,10 @@
+package dependentmaps
+
+modules = Data.DependentMap,
+	  Data.Misc,
+          Test.DependentMap
+
+opts = "-p contrib"
+
+main = Test.DependentMap
+executable = runTests

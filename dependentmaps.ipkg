@@ -1,0 +1,19 @@
+package dependentmaps
+version = 0.1.0
+authors = "James Cranch <cranch@cantab.net>"
+sourceloc = "https://github.com/jcranch/dependentmaps"
+license = "BSD3"
+brief = "An alternative dependently-typed map implementation"
+
+-- the Idris2 version required (e.g. langversion >= 0.5.1)
+-- langversion
+
+-- packages to add to search path
+depends = contrib,
+          extrafun
+
+-- modules to install
+modules = Data.DependentMap,
+          Data.PrefixMap
+
+sourcedir = "src"

@@ -1,0 +1,10 @@
+[custom.all.dependentmaps]
+type = "local"
+path = "."
+ipkg = "dependentmaps.ipkg"
+test = "test/test.ipkg"
+
+[custom.all.dependentmaps-test]
+type = "local"
+path = "test"
+ipkg = "test.ipkg"

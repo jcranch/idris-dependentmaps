@@ -343,19 +343,6 @@ Foldable Keys where
   foldl f z (KeyView m) = dfoldl (\e, x, _ => f e x) z m
 
 
-{-
-public export
-data HasDMapKey : DMap k v -> k -> Type where
-  HasKeyL : 
-  HasKeyR :
-  HasKeyM : (x : k) -> (y : v x) -> HasKey (Bin n x y l r) x
--}
-
-{-
-public export
-data HasntDMapKey : DMap k v -> k -> Type where
--}
-
 -- One day Idris should perhaps be able to compose the standard list
 -- equality with eqDPairFromDec automatically, but I haven't been able
 -- to get it to do that. So, until then...
@@ -387,3 +374,49 @@ change x g = assert_total $ let
   h Nothing = idris_crash "change: expected to find this key"
   h (Just a) = Just (g a)
   in alter x h
+
+
+
+{-
+-- Haven't managed to get this working yet
+public export
+data HasKey : DMap k v -> k -> Type where
+  HasKeyL : HasKey l z -> HasKey (Bin n x a l r) z
+  HasKeyR : HasKey r z -> HasKey (Bin n x a l r) z
+  HasKeyM : (x : k) -> HasKey (Bin n x a l r) x
+
+
+public export
+data Ordered : (o : k -> k -> Type) -> DMap k v -> Type where
+  TipOrdered : Ordered o Tip
+  BinOrdered : (HasKey l y -> o y x) -> (HasKey r z -> o x z) -> Ordered o (Bin n x a l r)
+-}
+
+{-
+||| If we can inspect evidence that a key is present, can look it up
+hasBasicLookup : (h : HasKey m z) -> DPair k v
+hasBasicLookup (HasKeyM x a) = MkDPair x a
+hasBasicLookup (HasKeyL h) = hasBasicLookup h
+hasBasicLookup (HasKeyR h) = hasBasicLookup h
+
+-- Want a more cunning version of that where we don't inspect the
+-- HasKey but deduce something from it existing (and do inspect the map)
+-}
+
+
+{-
+
+||| Keys are present after inserting them
+insertHasHere : (x : k) -> (a : v x) -> (m : DMap k v) -> HasKey (insert x a m) z
+insertHasHere x a Tip = HasKeyM x a
+insertHasHere x a (Bin n y b l r) = case x y of
+  LT => ?what
+  GT => ?which
+  EQ => HasKeyM x a
+
+||| Keys are preserved by insertions
+insertHasThere : HasKey m z -> HasKey (insert x y m) z
+insertHasThere
+-}
+
+-- Can use HasKey -> Void for HasntKey

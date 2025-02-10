@@ -1,6 +1,6 @@
 runtests:
 	$(IDRIS_PACK_HOME)/bin/spec-discover test
-	pack test extrafun
+	pack test dependentmaps
 
-build:
+compile:
 	pack build

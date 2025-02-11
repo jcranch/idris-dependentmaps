@@ -1,10 +1,12 @@
 package dependentmaps
+version = 0.1.0
+authors = "James Cranch"
+license = "BSD3"
+sourceloc = "https://github.com/jcranch/idris-dependentmaps"
 
 modules = Data.DependentMap,
-	  Data.Misc,
-          Test.DependentMap
+	  Data.Misc
 
-opts = "-p contrib"
+depends = contrib,
+          extrafun
 
-main = Test.DependentMap
-executable = runTests

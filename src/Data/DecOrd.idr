@@ -77,6 +77,9 @@ OrdCompatible Nat where
 interface Irreflexive (a : Type) (r : a -> a -> Type) where
   irrefl : {0 x : a} -> r x x -> Void
 
+irrefl' : Irreflexive a r => {0 x : a} -> {0 y : a} -> r x y -> x = y -> Void
+irrefl' p Refl = irrefl p
+
 natIrrefl : LT x x -> Void
 natIrrefl (LTESucc y) = natIrrefl y
 
@@ -109,17 +112,17 @@ interface Irreflexive a r => Transitive a r => Trichotomous a r => TotalOrder (a
 
 
 
-
-totalOrderAntisymmetry : Irreflexive a r => Transitive a r => {x : a} -> {y : a} -> r x y -> r y x -> Void
-totalOrderAntisymmetry {a} {r} p q = irrefl @{a} {r} (transitive p q)
-
+{-
+totalOrderAntisymmetry : (Irreflexive a r, Transitive a r) => {0 x : a} -> {0 y : a} -> r x y -> r y x -> Void
+totalOrderAntisymmetry p q = irrefl (transitive p q)
+-}
 
 data OrdDecides : (a -> a -> Type) -> (x : a) -> (y : a) -> Ordering -> Type where
   DecidesLT : {0 r : a -> a -> Type} -> r x y -> OrdDecides r x y LT
   DecidesEQ : {0 r : a -> a -> Type} -> x = y -> OrdDecides r x y EQ
   DecidesGT : {0 r : a -> a -> Type} -> r y x -> OrdDecides r x y GT
 
-interface Ord a => DecOrd a (r : a -> a -> Type) | a where
+interface (TotalOrder a r, Ord a) => DecOrd a (r : a -> a -> Type) where
   decOrd : (x : a) -> (y : a) -> OrdDecides r x y (compare x y)
 
 data BoolOrder : Bool -> Bool -> Type where
@@ -146,8 +149,10 @@ DecOrd Nat LT where
   decOrd (S m) 0 = DecidesGT (LTESucc LTEZero)
   decOrd (S m) (S n) = decOrdNatSucc (decOrd m n)
 
-{-
-decOrdEq : DecOrd a r => DecEq x where
-  decEq x y = case decOrd x y of
-    DecidesLT _ p _ => No p
--}
+
+
+ordDecidesEq : (Ord a, Irreflexive a r) => {x : a} -> {y : a} -> OrdDecides r x y (compare x y) -> Dec (x = y)
+ordDecidesEq d with (compare x y)
+  ordDecidesEq (DecidesLT p) | LT = No (irrefl' p)
+  ordDecidesEq (DecidesEQ p) | EQ = Yes p
+  ordDecidesEq (DecidesGT p) | GT = No (\e => irrefl' p (sym e))

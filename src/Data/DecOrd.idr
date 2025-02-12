@@ -74,9 +74,10 @@ OrdCompatible Nat where
   eqOrdCompat (S m) (S n) = eqOrdCompatSucc (eqOrdCompat m n)
 
 
-interface Irreflexive (a : Type) (r : a -> a -> Type) where
+interface Irreflexive a r | r where
   irrefl : {0 x : a} -> r x x -> Void
 
+||| Alternative version of irreflexivity
 irrefl' : Irreflexive a r => {0 x : a} -> {0 y : a} -> r x y -> x = y -> Void
 irrefl' p Refl = irrefl p
 
@@ -86,13 +87,19 @@ natIrrefl (LTESucc y) = natIrrefl y
 Irreflexive Nat LT where
   irrefl = natIrrefl
 
+{-
+-- Can't get this to work for quantity reasons
+totalOrderAntisymmetry : (Irreflexive a r, Transitive a r) => r x y -> r y x -> Void
+totalOrderAntisymmetry p q = irrefl (transitive p q)
+-}
+
 
 data Trichotomy : (r : a -> a -> Type) -> a -> a -> Type where
   LT : {0 x : a} -> {0 y : a} -> r x y -> Trichotomy r x y
   EQ : x = y -> Trichotomy r x y
   GT : {0 x : a} -> {0 y : a} -> r y x -> Trichotomy r x y
 
-interface Trichotomous (a : Type) (r : a -> a -> Type) where
+interface Trichotomous a r | r where
   trichotomy : (x : a) -> (y : a) -> Trichotomy r x y
 
 trichotomySucc : Trichotomy LT m n -> Trichotomy LT (S m) (S n)
@@ -107,10 +114,6 @@ Trichotomous Nat LT where
   trichotomy (S m) (S n) = trichotomySucc (trichotomy m n)
 
 
-||| Very similar to LinearOrder (in Control.TotalOrder) but based off LT rather than LTE
-public export
-interface Irreflexive a r => Transitive a r => Trichotomous a r => TotalOrder (a : Type) (r : a -> a -> Type) where
-
 succLTE : LTE x y -> LTE x (S y)
 succLTE LTEZero = LTEZero
 succLTE (LTESucc a) = LTESucc (succLTE a)
@@ -118,18 +121,15 @@ succLTE (LTESucc a) = LTESucc (succLTE a)
 precLTE : LTE (S x) y -> LTE x y
 precLTE (LTESucc z) = succLTE z
 
-[transitiveLT] Transitive Nat LT where
+Transitive Nat LT where
   transitive a b = transitive a (precLTE b)
 
 
--- TotalOrder Nat LT where
+||| Very similar to LinearOrder (in Control.TotalOrder) but based off LT rather than LTE
+public export
+interface (Irreflexive a r, (Transitive a r, Trichotomous a r)) => TotalOrder a r | r where
 
-
-
-{-
-totalOrderAntisymmetry : (Irreflexive a r, Transitive a r) => {0 x : a} -> {0 y : a} -> r x y -> r y x -> Void
-totalOrderAntisymmetry p q = irrefl (transitive p q)
--}
+TotalOrder Nat LT where
 
 
 data OrdDecides : (a -> a -> Type) -> (x : a) -> (y : a) -> Ordering -> Type where
@@ -145,6 +145,17 @@ data BoolOrder : Bool -> Bool -> Type where
 
 Irreflexive Bool BoolOrder where
   irrefl FalseTrue impossible
+
+Trichotomous Bool BoolOrder where
+  trichotomy False False = EQ Refl
+  trichotomy False True = LT FalseTrue
+  trichotomy True False = GT FalseTrue
+  trichotomy True True = EQ Refl
+
+Transitive Bool BoolOrder where
+  transitive FalseTrue FalseTrue impossible
+
+TotalOrder Bool BoolOrder where
 
 DecOrd Bool BoolOrder where
   decOrd False True = DecidesLT FalseTrue

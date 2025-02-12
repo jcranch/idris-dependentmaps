@@ -378,20 +378,24 @@ change x g = assert_total $ let
 
 
 
-{-
--- Haven't managed to get this working yet
 public export
-data HasKey : DMap k v -> k -> Type where
-  HasKeyL : HasKey l z -> HasKey (Bin n x a l r) z
-  HasKeyR : HasKey r z -> HasKey (Bin n x a l r) z
-  HasKeyM : (x : k) -> HasKey (Bin n x a l r) x
+data HasKey : (0 k : Type) -> (0 v : k -> Type) -> DMap k v -> k -> Type where
+  HasKeyL : HasKey k v l z -> HasKey k v (Bin n x a l r) z
+  HasKeyR : HasKey k v r z -> HasKey k v (Bin n x a l r) z
+  HasKeyM : (x : k) -> {0 a : v x} -> HasKey k v (Bin n x a l r) x
+
+singletonHasKey : (x : k) -> (y : v x) -> HasKey k v (singleton x y) x
+singletonHasKey x y = HasKeyM x
 
 
 public export
 data Ordered : (o : k -> k -> Type) -> DMap k v -> Type where
   TipOrdered : Ordered o Tip
-  BinOrdered : (HasKey l y -> o y x) -> (HasKey r z -> o x z) -> Ordered o (Bin n x a l r)
--}
+  BinOrdered : Ordered o l -> (HasKey k v l y -> o y x) -> Ordered o r -> (HasKey k v r z -> o x z) -> Ordered o (Bin n x a l r)
+
+-- Vacuously true (ie with no assumptions on the relation o)
+singletonOrdered : (0 k : Type) -> (0 v : k -> Type) -> (x : k) -> (y : v x) -> Ordered o (singleton x y)
+singletonOrdered k v x y = BinOrdered TipOrdered ?a TipOrdered ?b
 
 {-
 ||| If we can inspect evidence that a key is present, can look it up

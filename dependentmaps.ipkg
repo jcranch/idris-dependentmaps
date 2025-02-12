@@ -4,9 +4,10 @@ authors = "James Cranch"
 license = "BSD3"
 sourceloc = "https://github.com/jcranch/idris-dependentmaps"
 
-modules = Data.DependentMap,
-	  Data.Misc
-
 depends = contrib,
           extrafun
 
+modules = Data.DependentMap,
+	  Data.Misc
+
+sourcedir = "src"

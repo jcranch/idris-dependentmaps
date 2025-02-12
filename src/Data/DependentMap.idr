@@ -222,3 +222,70 @@ Foldable Keys where
 export
 [eqDMapFromDec] {0 v : k -> Type} -> (DecEq k, {x : k} -> Eq (v x)) => Eq (DMap k v) where
   a == b = (==) @{listDPairEq} (toList a) (toList b)
+
+
+{-
+||| A variant of alterF that assumes the key will be present before and after
+export
+changeF : (Functor f, DecEq k, Ord k) => {0 v : k -> Type} -> (x : k) -> (v x -> f (v x)) -> DMap k v -> f (DMap k v)
+changeF x g = assert_total $ let
+  h : Maybe (v x) -> f (Maybe (v x))
+  h Nothing = idris_crash "changeF: expected to find this key"
+  h (Just a) = Just <$> g a
+  in alterF x h
+
+
+||| A variant of alter that assumes the key will be present before and after
+export
+change : (DecEq k, Ord k) => {0 v : k -> Type} -> (x : k) -> (v x -> v x) -> DMap k v -> DMap k v
+change x g = assert_total $ let
+  h : Maybe (v x) -> Maybe (v x)
+  h Nothing = idris_crash "change: expected to find this key"
+  h (Just a) = Just (g a)
+  in alter x h
+-}
+
+
+{-
+-- Haven't managed to get this working yet
+public export
+data HasKey : DMap k v -> k -> Type where
+  HasKeyL : HasKey l z -> HasKey (Bin n x a l r) z
+  HasKeyR : HasKey r z -> HasKey (Bin n x a l r) z
+  HasKeyM : (x : k) -> HasKey (Bin n x a l r) x
+
+
+public export
+data Ordered : (o : k -> k -> Type) -> DMap k v -> Type where
+  TipOrdered : Ordered o Tip
+  BinOrdered : (HasKey l y -> o y x) -> (HasKey r z -> o x z) -> Ordered o (Bin n x a l r)
+-}
+
+{-
+||| If we can inspect evidence that a key is present, can look it up
+hasBasicLookup : (h : HasKey m z) -> DPair k v
+hasBasicLookup (HasKeyM x a) = MkDPair x a
+hasBasicLookup (HasKeyL h) = hasBasicLookup h
+hasBasicLookup (HasKeyR h) = hasBasicLookup h
+
+-- Want a more cunning version of that where we don't inspect the
+-- HasKey but deduce something from it existing (and do inspect the map)
+-}
+
+
+{-
+
+||| Keys are present after inserting them
+insertHasHere : (x : k) -> (a : v x) -> (m : DMap k v) -> HasKey (insert x a m) z
+insertHasHere x a Tip = HasKeyM x a
+insertHasHere x a (Bin n y b l r) = case x y of
+  LT => ?what
+  GT => ?which
+  EQ => HasKeyM x a
+
+||| Keys are preserved by insertions
+insertHasThere : HasKey m z -> HasKey (insert x y m) z
+insertHasThere
+-}
+
+-- Can use HasKey -> Void for HasntKey

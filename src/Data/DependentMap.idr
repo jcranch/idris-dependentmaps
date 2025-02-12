@@ -2,6 +2,7 @@ module Data.DependentMap
 
 import Decidable.Equality
 
+import Data.DecOrd
 import Data.Misc
 
 
@@ -246,19 +247,37 @@ change x g = assert_total $ let
 -}
 
 
-{-
--- Haven't managed to get this working yet
+
 public export
 data HasKey : DMap k v -> k -> Type where
   HasKeyL : HasKey l z -> HasKey (Bin n x a l r) z
   HasKeyR : HasKey r z -> HasKey (Bin n x a l r) z
-  HasKeyM : (x : k) -> HasKey (Bin n x a l r) x
+  HasKeyM : {0 a : k -> Type} -> (x : k) -> HasKey (Bin n x a l r) x
+
+emptyHasntKey : HasKey Tip x -> Void
+emptyHasntKey (HasKeyL y) impossible
+emptyHasntKey (HasKeyR y) impossible
+emptyHasntKey (HasKeyM y) impossible
 
 
 public export
 data Ordered : (o : k -> k -> Type) -> DMap k v -> Type where
   TipOrdered : Ordered o Tip
-  BinOrdered : (HasKey l y -> o y x) -> (HasKey r z -> o x z) -> Ordered o (Bin n x a l r)
+  BinOrdered : Ordered o l -> Ordered o r -> (HasKey l y -> o y x) -> (HasKey r z -> o x z) -> Ordered o (Bin n x a l r)
+
+{-
+singletonOrdered : TotalOrder a o => {x : a} -> {0 v : a -> Type} -> {y : v x} -> Ordered o (singleton x y)
+singletonOrdered = BinOrdered TipOrdered TipOrdered ?x ?y
+-}
+
+{-
+
+
+
+
+
+
+
 -}
 
 {-

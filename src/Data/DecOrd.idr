@@ -105,10 +105,21 @@ Trichotomous Nat LT where
 
 
 ||| Very similar to LinearOrder (in Control.TotalOrder) but based off LT rather than LTE
+public export
 interface Irreflexive a r => Transitive a r => Trichotomous a r => TotalOrder (a : Type) (r : a -> a -> Type) where
 
--- is it proved anywhere that Nat is transitive?
--- Want Nat to be totally ordered
+succLTE : LTE x y -> LTE x (S y)
+succLTE LTEZero = LTEZero
+succLTE (LTESucc a) = LTESucc (succLTE a)
+
+precLTE : LTE (S x) y -> LTE x y
+precLTE (LTESucc z) = succLTE z
+
+[transitiveLT] Transitive Nat LT where
+  transitive a b = transitive a (precLTE b)
+
+
+-- TotalOrder Nat LT where
 
 
 

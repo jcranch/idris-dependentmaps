@@ -26,7 +26,7 @@ m3 : DMap Nat (\n => Vect n Nat)
 m3 = singleton 4 [3,3,3,3]
 
 
--- Simple invariants for testing
+-- A simple invariant for testing
 trail : DMap Nat (\n => Vect n Nat) -> List (Nat, Nat)
 trail = dconcatMap t where
   t : (n : Nat) -> Vect n Nat -> List (Nat, Nat)

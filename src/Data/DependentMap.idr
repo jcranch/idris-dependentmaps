@@ -18,6 +18,7 @@ import Data.Misc
 -- Chen (2007) variety: each node is not to be smaller than either of
 -- its sibling's children.
 
+
 export
 data DMap : (k : Type) -> (k -> Type) -> Type where
   Bin : Nat -> (x : k) -> v x -> DMap k v -> DMap k v -> DMap k v

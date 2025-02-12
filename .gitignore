@@ -1,4 +1,4 @@
 build/
-*.*~
+*~
 test/test.ipkg
 test/src/Main.idr

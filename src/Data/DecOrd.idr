@@ -108,7 +108,21 @@ Trichotomous Nat LT where
 
 
 ||| Very similar to LinearOrder (in Control.TotalOrder) but based off LT rather than LTE
+public export
 interface Irreflexive a r => Transitive a r => Trichotomous a r => TotalOrder (a : Type) (r : a -> a -> Type) where
+
+succLTE : LTE x y -> LTE x (S y)
+succLTE LTEZero = LTEZero
+succLTE (LTESucc a) = LTESucc (succLTE a)
+
+precLTE : LTE (S x) y -> LTE x y
+precLTE (LTESucc z) = succLTE z
+
+[transitiveLT] Transitive Nat LT where
+  transitive a b = transitive a (precLTE b)
+
+
+-- TotalOrder Nat LT where
 
 
 
@@ -116,6 +130,7 @@ interface Irreflexive a r => Transitive a r => Trichotomous a r => TotalOrder (a
 totalOrderAntisymmetry : (Irreflexive a r, Transitive a r) => {0 x : a} -> {0 y : a} -> r x y -> r y x -> Void
 totalOrderAntisymmetry p q = irrefl (transitive p q)
 -}
+
 
 data OrdDecides : (a -> a -> Type) -> (x : a) -> (y : a) -> Ordering -> Type where
   DecidesLT : {0 r : a -> a -> Type} -> r x y -> OrdDecides r x y LT

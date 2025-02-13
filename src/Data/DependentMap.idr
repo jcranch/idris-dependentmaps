@@ -357,6 +357,10 @@ export
   a == b = (==) @{listDPairEq} (toList a) (toList b)
 
 
+{-
+-- Could power these with HasKey
+-- Could make them partial (returning Maybes)
+
 ||| A variant of alterF that assumes the key will be present before and after
 export
 changeF : (Functor f, DecEq k, Ord k) => {0 v : k -> Type} -> (x : k) -> (v x -> f (v x)) -> DMap k v -> f (DMap k v)
@@ -375,7 +379,7 @@ change x g = assert_total $ let
   h Nothing = idris_crash "change: expected to find this key"
   h (Just a) = Just (g a)
   in alter x h
-
+-}
 
 
 public export
@@ -384,18 +388,43 @@ data HasKey : (0 k : Type) -> (0 v : k -> Type) -> DMap k v -> k -> Type where
   HasKeyR : HasKey k v r z -> HasKey k v (Bin n x a l r) z
   HasKeyM : (x : k) -> {0 a : v x} -> HasKey k v (Bin n x a l r) x
 
+
+emptyHasntKey : HasKey k v Tip x -> Void
+emptyHasntKey (HasKeyL y) impossible
+emptyHasntKey (HasKeyR y) impossible
+emptyHasntKey (HasKeyM y) impossible
+
 singletonHasKey : (x : k) -> (y : v x) -> HasKey k v (singleton x y) x
 singletonHasKey x y = HasKeyM x
 
 
 public export
-data Ordered : (o : k -> k -> Type) -> DMap k v -> Type where
-  TipOrdered : Ordered o Tip
-  BinOrdered : Ordered o l -> (HasKey k v l y -> o y x) -> Ordered o r -> (HasKey k v r z -> o x z) -> Ordered o (Bin n x a l r)
+data Ordered : (0 k : Type) -> (0 v : k -> Type) -> (o : k -> k -> Type) -> DMap k v -> Type where
+  TipOrdered : Ordered k v o Tip
+  BinOrdered : Ordered k v o l -> ({y : k} -> HasKey k v l y -> o y x) -> Ordered k v o r -> ({z : k} -> HasKey k v r z -> o x z) -> Ordered k v o (Bin n x a l r)
 
--- Vacuously true (ie with no assumptions on the relation o)
-singletonOrdered : (0 k : Type) -> (0 v : k -> Type) -> (x : k) -> (y : v x) -> Ordered o (singleton x y)
-singletonOrdered k v x y = BinOrdered TipOrdered ?a TipOrdered ?b
+
+-- Singletons are vacuously ordered (that is, with no assumptions on the relation o)
+singletonOrdered : (0 k : Type) -> (0 v : k -> Type) -> {o : k -> k -> Type} -> (x : k) -> (y : v x) -> Ordered k v o (singleton x y)
+singletonOrdered k v x y = BinOrdered TipOrdered (absurd . emptyHasntKey) TipOrdered (absurd . emptyHasntKey)
+
+{-
+mutual
+  balanceLOrdered : TotalOrder k o => (m : DMap k v) -> Ordered k v o m -> Ordered k v o (balanceL m)
+  balanceLOrdered t@(Bin n x5 a5 (Bin _ x1 a1 t0 (Bin m x3 a3 t2 t4)) t6) p = if m > length t6
+    then ?x -- balance (Bin n x3 a3 (balanceL (bin x1 a1 t0 t2)) (balanceR (bin x5 a5 t4 t6)))
+    else ?y -- balanceL' t
+  balanceLOrdered p = balanceLOrdered' p
+
+  balanceLOrdered' : TotalOrder k o => (m : DMap k v) -> Ordered k v o m -> Ordered k v o (balanceL' m)
+
+  balanceROrdered : TotalOrder k o => (m : DMap k v) -> Ordered k v o m -> Ordered k v o (balanceR m)
+
+  balanceROrdered' : TotalOrder k o => (m : DMap k v) -> Ordered k v o m -> Ordered k v o (balanceR' m)
+
+  balanceOrdered : TotalOrder k o => (m : DMap k v) -> Ordered k v o m -> Ordered k v o (balance m)
+  balanceOrdered = ?w -- balanceLOrdered . balanceROrdered
+-}
 
 {-
 ||| If we can inspect evidence that a key is present, can look it up

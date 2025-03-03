@@ -1,11 +1,12 @@
 package dependentmaps
 version = 0.1.0
 authors = "James Cranch <cranch@cantab.net>"
-sourceloc = "https://github.com/jcranch/dependentmaps"
+sourceloc = "https://github.com/jcranch/idris-dependentmaps"
 license = "BSD3"
 brief = "An alternative dependently-typed map implementation"
 
 depends = contrib,
+          decord,
           extrafun
 
 -- modules to install

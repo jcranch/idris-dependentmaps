@@ -10,7 +10,8 @@ import Data.Traversable.Dependent
 import Data.Witherable.Dependent
 import Data.Withering.Dependent
 
-import Data.DecOrd
+import Control.Relation.TotalOrder
+
 import Data.Misc
 
 

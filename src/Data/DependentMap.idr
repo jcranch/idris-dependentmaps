@@ -1,6 +1,7 @@
 module Data.DependentMap
 
 import Control.Monad.Identity
+import Data.Nat
 import Decidable.Equality
 import Decidable.Ordering
 
@@ -17,6 +18,7 @@ import Data.Misc
 -- Dependent sorted maps, implemented as size-balanced trees of the
 -- Chen (2007) variety: each node is not to be smaller than either of
 -- its sibling's children.
+-- http://wcipeg.com/wiki/Size_Balanced_Tree
 
 
 export
@@ -55,6 +57,7 @@ maybeSingleton x (Just a) = singleton x a
 maybeSingleton _ Nothing = empty
 
 mutual
+
   -- Has the left half got too big?
   balanceL : DMap k v -> DMap k v
   balanceL t@(Bin n x5 a5 (Bin _ x1 a1 t0 (Bin m x3 a3 t2 t4)) t6) = if m > length t6
@@ -125,7 +128,7 @@ export
 {0 k : Type} -> (Ord k) => DepFilterable k (DMap k) where
   dmapMaybe _ Tip = Tip
   dmapMaybe f (Bin n y a l r) = case f y a of
-    Just b => (dmapMaybe f l `concatenate` singleton y b) `concatenate` dmapMaybe f r
+    Just b => balance (bin y b (dmapMaybe f l) (dmapMaybe f r))
     Nothing => dmapMaybe f l `concatenate` dmapMaybe f r
 
 export
@@ -377,6 +380,25 @@ singletonHasKey : (x : k) -> (y : v x) -> HasKey k v (singleton x y) x
 singletonHasKey x y = HasKeyM x
 
 
+{-
+mutual
+  balanceHasKeyL : {m : DMap k v} -> HasKey k v m x -> HasKey k v (balanceL m) x
+  balanceHasKeyL t@{Bin n x5 a5 (Bin _ x1 a1 t0 (Bin m x3 a3 t2 t4)) t6} h = ?bl
+
+  balanceHasKeyL' : {m : DMap k v} -> HasKey k v m x -> HasKey k v (balanceL' m) x
+  balanceHasKeyL' = ?bl'
+
+  balanceHasKeyR : {m : DMap k v} -> HasKey k v m x -> HasKey k v (balanceR m) x
+  balanceHasKeyR = ?br
+
+  balanceHasKeyR' : {m : DMap k v} -> HasKey k v m x -> HasKey k v (balanceR' m) x
+  balanceHasKeyR' = ?br'
+
+  balanceHasKey : {m : DMap k v} -> HasKey k v m x -> HasKey k v (balance m) x
+  balanceHasKey {m} h = balanceHasKeyL {m = balanceR m} (balanceHasKeyR {m = m} h)
+-}
+
+
 public export
 data Ordered : (0 k : Type)
             -> (0 v : k -> Type)
@@ -415,6 +437,7 @@ hasKeyOnRight (BinOrdered _ p _ _) (HasKeyL h) e = void (irrefl (transitive e (p
 hasKeyOnRight _ (HasKeyR h) _ = h
 hasKeyOnRight _ (HasKeyM _) e = void (irrefl e)
 
+
 {-
 mutual
   balanceLOrdered : TotalOrder k o => {m : DMap k v} -> Ordered k v o m -> Ordered k v o (balanceL m)
@@ -438,11 +461,9 @@ mutual
 
   balanceROrdered' : TotalOrder k o => {m : DMap k v} -> Ordered k v o m -> Ordered k v o (balanceR' m)
   balanceROrdered' = ?s
--}
 
-{-
-balanceOrdered : TotalOrder k o => {m : DMap k v} -> Ordered k v o m -> Ordered k v o (balance m)
-balanceOrdered {m} p = balanceLOrdered {m = balanceR m} (balanceROrdered {m = m} p)
+  balanceOrdered : TotalOrder k o => {m : DMap k v} -> Ordered k v o m -> Ordered k v o (balance m)
+  balanceOrdered {m} p = balanceLOrdered {m = balanceR m} (balanceROrdered {m = m} p)
 -}
 
 
@@ -471,3 +492,24 @@ insertHasHere x y (Bin n x' _ l r) with (decOrd {r = o} x x')
 insertHasThere : HasKey m z -> HasKey (insert x y m) z
 insertHasThere
 -}
+
+
+lChildLength : DMap k v -> Nat
+lChildLength Tip = 0
+lChildLength (Bin _ _ _ l _) = length l
+
+rChildLength : DMap k v -> Nat
+rChildLength Tip = 0
+rChildLength (Bin _ _ _ _ r) = length r
+
+||| Expresses that the tree is balanced in the sense of Chen, and also
+||| that the length count is correct
+data Balanced : DMap k v -> Type where
+  TipBalanced : Balanced Tip
+  BinBalanced : LTE (lChildLength l) (length r)
+             -> LTE (rChildLength l) (length r)
+             -> LTE (lChildLength r) (length l)
+             -> LTE (rChildLength r) (length l)
+             -> Balanced l
+             -> Balanced r
+             -> Balanced (Bin (length l + 1 + length r) k v l r)

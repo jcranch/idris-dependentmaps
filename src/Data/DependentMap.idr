@@ -1,6 +1,7 @@
 module Data.DependentMap
 
 import Control.Monad.Identity
+import Data.Nat
 import Decidable.Equality
 
 import Data.Filterable.Dependent
@@ -11,6 +12,7 @@ import Data.Witherable.Dependent
 import Data.Withering.Dependent
 
 import Control.Relation.TotalOrder
+import Decidable.Ordering
 
 import Data.Misc
 
@@ -400,14 +402,49 @@ singletonHasKey x y = HasKeyM x
 
 
 public export
-data Ordered : (0 k : Type) -> (0 v : k -> Type) -> (o : k -> k -> Type) -> DMap k v -> Type where
+data Ordered : (0 k : Type)
+            -> (0 v : k -> Type)
+            -> (o : k -> k -> Type)
+            -> DMap k v
+            -> Type where
   TipOrdered : Ordered k v o Tip
-  BinOrdered : Ordered k v o l -> ({y : k} -> HasKey k v l y -> o y x) -> Ordered k v o r -> ({z : k} -> HasKey k v r z -> o x z) -> Ordered k v o (Bin n x a l r)
+  BinOrdered : Ordered k v o l
+            -> ({y : k} -> HasKey k v l y -> o y x)
+            -> Ordered k v o r
+            -> ({z : k} -> HasKey k v r z -> o x z)
+            -> Ordered k v o (Bin n x a l r)
 
 
 -- Singletons are vacuously ordered (that is, with no assumptions on the relation o)
 singletonOrdered : (0 k : Type) -> (0 v : k -> Type) -> {o : k -> k -> Type} -> (x : k) -> (y : v x) -> Ordered k v o (singleton x y)
 singletonOrdered k v x y = BinOrdered TipOrdered (absurd . emptyHasntKey) TipOrdered (absurd . emptyHasntKey)
+
+
+hasKeyL : TotalOrder k o
+       => {x : k}
+       -> {y : k}
+       -> {z : v x}
+       -> Ordered k v o (Bin n x z l r)
+       -> HasKey k v (Bin n x z l r) y
+       -> o y x
+       -> HasKey k v l y
+hasKeyL _ (HasKeyL h) _ = h
+hasKeyL _ (HasKeyM _) c = absurd (irrefl c)
+hasKeyL (BinOrdered _ _ _ p) (HasKeyR h) c = absurd (irrefl (transitive (p h) c))
+
+
+hasKeyR : TotalOrder k o
+       => {x : k}
+       -> {y : k}
+       -> {z : v x}
+       -> Ordered k v o (Bin n x z l r)
+       -> HasKey k v (Bin n x z l r) y
+       -> o x y
+       -> HasKey k v r y
+hasKeyR (BinOrdered _ p _ _) (HasKeyL h) c = absurd (irrefl (transitive (p h) c))
+hasKeyR _ (HasKeyM _) c = absurd (irrefl c)
+hasKeyR _ (HasKeyR h) _ = h
+
 
 {-
 mutual
@@ -437,6 +474,16 @@ hasBasicLookup (HasKeyR h) = hasBasicLookup h
 -- Want a more cunning version of that where we don't inspect the
 -- HasKey but deduce something from it existing (and do inspect the map)
 -}
+
+
+hasKeyLookup : (d : DecOrd k o)
+            => (m : DMap k v)
+            -> (x : k)
+            -> (0 h : HasKey k v m x)
+            -> (0 p : Ordered k v o m)
+            -> v x
+hasKeyLookup (Bin _ y z l r) x h p = ?what_0
+hasKeyLookup Tip x h p = ?what_1
 
 
 {-

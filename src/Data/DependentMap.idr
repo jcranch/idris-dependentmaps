@@ -1,16 +1,13 @@
 module Data.DependentMap
 
 import Control.Monad.Identity
-import Data.Nat
 import Decidable.Equality
+import Decidable.Ordering
 
-import Data.Filterable.Dependent
-import Data.Foldable.Dependent
-import Data.Functor.Dependent
-import Data.Traversable.Dependent
 import Data.Witherable.Dependent
 import Data.Withering.Dependent
 
+import Control.Relation
 import Control.Relation.TotalOrder
 import Decidable.Ordering
 
@@ -88,8 +85,10 @@ mutual
   balance : DMap k v -> DMap k v
   balance = balanceL . balanceR
 
--- Not safe for general use; assumes all keys in the left argument
--- less than all keys in the right argument.
+||| Concatenate two maps
+|||
+||| Unsafe, insofar as it assumes all keys in the left argument are
+||| less than all keys in the right argument.
 export
 concatenate : Ord k => DMap k v -> DMap k v -> DMap k v
 concatenate Tip m = m
@@ -172,8 +171,8 @@ export
 insert : (Ord k) => (x : k) -> v x -> DMap k v -> DMap k v
 insert x a = snd . basicReplace x a
 
--- splits the map into keys less than x and keys greater than x;
--- avoids using DecEq
+||| splits the map into keys less than x and keys greater than x;
+||| avoids using DecEq
 export
 splitAround : (Ord k) => (x : k) -> {0 v : k -> Type} -> DMap k v -> (DMap k v, Bool, DMap k v)
 splitAround _ Tip = (Tip, False, Tip)
@@ -360,31 +359,6 @@ export
   a == b = (==) @{listDPairEq} (toList a) (toList b)
 
 
-{-
--- Could power these with HasKey
--- Could make them partial (returning Maybes)
-
-||| A variant of alterF that assumes the key will be present before and after
-export
-changeF : (Functor f, DecEq k, Ord k) => {0 v : k -> Type} -> (x : k) -> (v x -> f (v x)) -> DMap k v -> f (DMap k v)
-changeF x g = assert_total $ let
-  h : Maybe (v x) -> f (Maybe (v x))
-  h Nothing = idris_crash "changeF: expected to find this key"
-  h (Just a) = Just <$> g a
-  in alterF x h
-
-
-||| A variant of alter that assumes the key will be present before and after
-export
-change : (DecEq k, Ord k) => {0 v : k -> Type} -> (x : k) -> (v x -> v x) -> DMap k v -> DMap k v
-change x g = assert_total $ let
-  h : Maybe (v x) -> Maybe (v x)
-  h Nothing = idris_crash "change: expected to find this key"
-  h (Just a) = Just (g a)
-  in alter x h
--}
-
-
 public export
 data HasKey : (0 k : Type) -> (0 v : k -> Type) -> DMap k v -> k -> Type where
   HasKeyL : HasKey k v l z -> HasKey k v (Bin n x a l r) z
@@ -392,11 +366,13 @@ data HasKey : (0 k : Type) -> (0 v : k -> Type) -> DMap k v -> k -> Type where
   HasKeyM : (x : k) -> {0 a : v x} -> HasKey k v (Bin n x a l r) x
 
 
+public export
 emptyHasntKey : HasKey k v Tip x -> Void
 emptyHasntKey (HasKeyL y) impossible
 emptyHasntKey (HasKeyR y) impossible
 emptyHasntKey (HasKeyM y) impossible
 
+public export
 singletonHasKey : (x : k) -> (y : v x) -> HasKey k v (singleton x y) x
 singletonHasKey x y = HasKeyM x
 
@@ -407,7 +383,13 @@ data Ordered : (0 k : Type)
             -> (o : k -> k -> Type)
             -> DMap k v
             -> Type where
+
+  ||| The tip is always ordered
   TipOrdered : Ordered k v o Tip
+
+  ||| A Bin is ordered if the left and right are ordered, and if the
+  ||| centre is greater than every element on the left and less than
+  ||| every element on the right.
   BinOrdered : Ordered k v o l
             -> ({y : k} -> HasKey k v l y -> o y x)
             -> Ordered k v o r
@@ -415,90 +397,77 @@ data Ordered : (0 k : Type)
             -> Ordered k v o (Bin n x a l r)
 
 
--- Singletons are vacuously ordered (that is, with no assumptions on the relation o)
+||| Singletons are vacuously ordered (that is, without any assumptions
+||| on the relation o).
+public export
 singletonOrdered : (0 k : Type) -> (0 v : k -> Type) -> {o : k -> k -> Type} -> (x : k) -> (y : v x) -> Ordered k v o (singleton x y)
 singletonOrdered k v x y = BinOrdered TipOrdered (absurd . emptyHasntKey) TipOrdered (absurd . emptyHasntKey)
 
+public export
+hasKeyOnLeft : TotalOrder k o => {y : k} -> Ordered k v o (Bin n x a l r) -> HasKey k v (Bin n x a l r) y -> o y x -> HasKey k v l y
+hasKeyOnLeft _ (HasKeyL h) _ = h
+hasKeyOnLeft (BinOrdered _ _ _ p) (HasKeyR h) e = void (irrefl (transitive e (p h)))
+hasKeyOnLeft _ (HasKeyM _) e = void (irrefl e)
 
-hasKeyL : TotalOrder k o
-       => {x : k}
-       -> {y : k}
-       -> {z : v x}
-       -> Ordered k v o (Bin n x z l r)
-       -> HasKey k v (Bin n x z l r) y
-       -> o y x
-       -> HasKey k v l y
-hasKeyL _ (HasKeyL h) _ = h
-hasKeyL _ (HasKeyM _) c = absurd (irrefl c)
-hasKeyL (BinOrdered _ _ _ p) (HasKeyR h) c = absurd (irrefl (transitive (p h) c))
-
-
-hasKeyR : TotalOrder k o
-       => {x : k}
-       -> {y : k}
-       -> {z : v x}
-       -> Ordered k v o (Bin n x z l r)
-       -> HasKey k v (Bin n x z l r) y
-       -> o x y
-       -> HasKey k v r y
-hasKeyR (BinOrdered _ p _ _) (HasKeyL h) c = absurd (irrefl (transitive (p h) c))
-hasKeyR _ (HasKeyM _) c = absurd (irrefl c)
-hasKeyR _ (HasKeyR h) _ = h
-
+public export
+hasKeyOnRight : TotalOrder k o => {y : k} -> Ordered k v o (Bin n x a l r) -> HasKey k v (Bin n x a l r) y -> o x y -> HasKey k v r y
+hasKeyOnRight (BinOrdered _ p _ _) (HasKeyL h) e = void (irrefl (transitive e (p h)))
+hasKeyOnRight _ (HasKeyR h) _ = h
+hasKeyOnRight _ (HasKeyM _) e = void (irrefl e)
 
 {-
 mutual
-  balanceLOrdered : TotalOrder k o => (m : DMap k v) -> Ordered k v o m -> Ordered k v o (balanceL m)
-  balanceLOrdered t@(Bin n x5 a5 (Bin _ x1 a1 t0 (Bin m x3 a3 t2 t4)) t6) p = if m > length t6
-    then ?x -- balance (Bin n x3 a3 (balanceL (bin x1 a1 t0 t2)) (balanceR (bin x5 a5 t4 t6)))
-    else ?y -- balanceL' t
-  balanceLOrdered p = balanceLOrdered' p
+  balanceLOrdered : TotalOrder k o => {m : DMap k v} -> Ordered k v o m -> Ordered k v o (balanceL m)
+  balanceLOrdered t@{(Bin n x5 a5 (Bin _ x1 a1 t0 (Bin m x3 a3 t2 t4)) t6)} p = ?w
+  balanceLOrdered {t} p = ?w2
+  {-
+  balanceLOrdered {m} p with (m)
+    _ | (Bin j x5 a5 (Bin _ x1 a1 t0 (Bin i x3 a3 t2 t4)) t6) with (i > length t6)
+      _ | True = ?x -- balance (Bin n x3 a3 (balanceL (bin x1 a1 t0 t2)) (balanceR (bin x5 a5 t4 t6)))
+      _ | False = balanceLOrdered' {m = Bin j x5 a5 (Bin _ x1 a1 t0 (Bin i x3 a3 t2 t4)) t6} p
+    _ | n = balanceLOrdered' {m = n} p
+-}
+  balanceLOrdered' : TotalOrder k o => {m : DMap k v} -> Ordered k v o m -> Ordered k v o (balanceL' m)
+  balanceLOrdered' {m = (Bin n x3 a3 (Bin _ x1 a1 t0 t2) t4)} p = if length t0 > length t4
+    then ?v
+    else ?z
+  balanceLOrdered' {m} p = p
 
-  balanceLOrdered' : TotalOrder k o => (m : DMap k v) -> Ordered k v o m -> Ordered k v o (balanceL' m)
+  balanceROrdered : TotalOrder k o => {m : DMap k v} -> Ordered k v o m -> Ordered k v o (balanceR m)
+  balanceROrdered = ?t
 
-  balanceROrdered : TotalOrder k o => (m : DMap k v) -> Ordered k v o m -> Ordered k v o (balanceR m)
-
-  balanceROrdered' : TotalOrder k o => (m : DMap k v) -> Ordered k v o m -> Ordered k v o (balanceR' m)
-
-  balanceOrdered : TotalOrder k o => (m : DMap k v) -> Ordered k v o m -> Ordered k v o (balance m)
-  balanceOrdered = ?w -- balanceLOrdered . balanceROrdered
+  balanceROrdered' : TotalOrder k o => {m : DMap k v} -> Ordered k v o m -> Ordered k v o (balanceR' m)
+  balanceROrdered' = ?s
 -}
 
 {-
-||| If we can inspect evidence that a key is present, can look it up
-hasBasicLookup : (h : HasKey m z) -> DPair k v
-hasBasicLookup (HasKeyM x a) = MkDPair x a
-hasBasicLookup (HasKeyL h) = hasBasicLookup h
-hasBasicLookup (HasKeyR h) = hasBasicLookup h
-
--- Want a more cunning version of that where we don't inspect the
--- HasKey but deduce something from it existing (and do inspect the map)
+balanceOrdered : TotalOrder k o => {m : DMap k v} -> Ordered k v o m -> Ordered k v o (balance m)
+balanceOrdered {m} p = balanceLOrdered {m = balanceR m} (balanceROrdered {m = m} p)
 -}
 
 
-hasKeyLookup : (d : DecOrd k o)
-            => (m : DMap k v)
-            -> (x : k)
-            -> (0 h : HasKey k v m x)
-            -> (0 p : Ordered k v o m)
-            -> v x
-hasKeyLookup (Bin _ y z l r) x h p = ?what_0
-hasKeyLookup Tip x h p = ?what_1
+-- also want versions of "alter" etc
+public export
+hasKeyLookup : TotalOrder k o => (m : DMap k v) -> (p : Ordered k v o m)  -> (x : k) -> (0 h : HasKey k v m x) -> v x
+hasKeyLookup (Bin _ x' y l r) p x h with (trichotomy {r = o} x x')
+  hasKeyLookup (Bin _ x' y _ _) _ x' _ | (EQ Refl) = y
+  hasKeyLookup (Bin _ x' y l _) p@(BinOrdered q _ _ _) x h | (LT w) = hasKeyLookup l q x (hasKeyOnLeft p h w)
+  hasKeyLookup (Bin _ x' y _ r) p@(BinOrdered _ _ q _) x h | (GT w) = hasKeyLookup r q x (hasKeyOnRight p h w)
+hasKeyLookup Tip _ _ (HasKeyL _) impossible
+hasKeyLookup Tip _ _ (HasKeyR _) impossible
+hasKeyLookup Tip _ _ (HasKeyM _) impossible
 
 
 {-
-
 ||| Keys are present after inserting them
-insertHasHere : (x : k) -> (a : v x) -> (m : DMap k v) -> HasKey (insert x a m) z
-insertHasHere x a Tip = HasKeyM x a
-insertHasHere x a (Bin n y b l r) = case x y of
-  LT => ?what
-  GT => ?which
-  EQ => HasKeyM x a
+insertHasHere : (Ord k, DecOrd k o) => (x : k) -> (y : v x) -> (m : DMap k v) -> HasKey k v (insert x y m) x
+insertHasHere x y Tip = HasKeyM x
+insertHasHere x y (Bin n x' _ l r) with (decOrd {r = o} x x')
+  insertHasHere x y (Bin n x' _ l r) | with_pat = ?what_rhs
+-}
 
+{-
 ||| Keys are preserved by insertions
 insertHasThere : HasKey m z -> HasKey (insert x y m) z
 insertHasThere
 -}
-
--- Can use HasKey -> Void for HasntKey

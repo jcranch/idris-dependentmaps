@@ -1,14 +1,15 @@
+||| Dependent sorted maps, implemented as "hairy finger trees": like
+||| fingertrees, but with interspersed unpacked elements for easy
+||| comparisons.
 module Data.DependentMap
 
 import Control.Monad.Identity
 import Data.Nat
 import Decidable.Equality
-import Decidable.Ordering
 
 import Data.Witherable.Dependent
 import Data.Withering.Dependent
 
-import Control.Relation
 import Control.Relation.TotalOrder
 import Decidable.Ordering
 
@@ -60,8 +61,8 @@ mutual
 
   -- Has the left half got too big?
   balanceL : DMap k v -> DMap k v
-  balanceL t@(Bin n x5 a5 (Bin _ x1 a1 t0 (Bin m x3 a3 t2 t4)) t6) = if m > length t6
-    then balance (Bin n x3 a3 (balanceL (bin x1 a1 t0 t2)) (balanceR (bin x5 a5 t4 t6)))
+  balanceL t@(Bin j x5 a5 (Bin _ x1 a1 t0 (Bin i x3 a3 t2 t4)) t6) = if i > length t6
+    then balance (Bin j x3 a3 (balanceL (bin x1 a1 t0 t2)) (balanceR (bin x5 a5 t4 t6)))
     else balanceL' t
   balanceL t = balanceL' t
 
@@ -107,6 +108,7 @@ export
 
 export
 {0 k : Type} -> DepFoldable k (DMap k) where
+
   -- dfoldl : (f : m -> (x : k) -> v x -> m) -> m -> DMap k v -> m
   dfoldl _ z Tip = z
   dfoldl f z (Bin _ y a l r) = dfoldl f (f (dfoldl f z l) y a) r
@@ -146,8 +148,8 @@ export
 lookup : (DecEq k, Ord k) => (x : k) -> {0 v : k -> Type} -> DMap k v -> Maybe (v x)
 lookup x m = fromDPair {v = v} x =<< basicLookup x m
 
--- Insert, and also return the old key. This is actually efficient,
--- since it minimises useless rebalancing.
+-- Insert, and also return the old key. This is efficient, since it
+-- prevents us rebalancing when the tree shape isn't changed.
 export
 basicReplace : Ord k => (x : k) -> v x -> DMap k v -> (Maybe (DPair k v), DMap k v)
 basicReplace x a Tip = (Nothing, singleton x a)
@@ -380,10 +382,13 @@ singletonHasKey : (x : k) -> (y : v x) -> HasKey k v (singleton x y) x
 singletonHasKey x y = HasKeyM x
 
 
-{-
 mutual
   balanceHasKeyL : {m : DMap k v} -> HasKey k v m x -> HasKey k v (balanceL m) x
-  balanceHasKeyL t@{Bin n x5 a5 (Bin _ x1 a1 t0 (Bin m x3 a3 t2 t4)) t6} h = ?bl
+  balanceHasKeyL {m} h with (m)
+    balanceHasKeyL {m} h | (Bin j x5 a5 (Bin _ x1 a1 t0 (Bin i x3 a3 t2 t4)) t6) with (i > length t6)
+      balanceHasKeyL {m} h | (Bin j x5 a5 (Bin _ x1 a1 t0 (Bin i x3 a3 t2 t4)) t6) | True = balanceHasKey ?bl_rhs1
+      balanceHasKeyL {m} h | (Bin j x5 a5 (Bin _ x1 a1 t0 (Bin i x3 a3 t2 t4)) t6) | False = ?bl_rhs2
+    balanceHasKeyL {m} h | t = ?bl_rhs3 -- balanceHasKeyL' {m = t} h
 
   balanceHasKeyL' : {m : DMap k v} -> HasKey k v m x -> HasKey k v (balanceL' m) x
   balanceHasKeyL' = ?bl'
@@ -396,6 +401,7 @@ mutual
 
   balanceHasKey : {m : DMap k v} -> HasKey k v m x -> HasKey k v (balance m) x
   balanceHasKey {m} h = balanceHasKeyL {m = balanceR m} (balanceHasKeyR {m = m} h)
+{-
 -}
 
 
@@ -422,58 +428,77 @@ data Ordered : (0 k : Type)
 ||| Singletons are vacuously ordered (that is, without any assumptions
 ||| on the relation o).
 public export
-singletonOrdered : (0 k : Type) -> (0 v : k -> Type) -> {o : k -> k -> Type} -> (x : k) -> (y : v x) -> Ordered k v o (singleton x y)
+singletonOrdered : (0 k : Type)
+                -> (0 v : k -> Type)
+                -> {o : k -> k -> Type}
+                -> (x : k)
+                -> (y : v x)
+                -> Ordered k v o (singleton x y)
 singletonOrdered k v x y = BinOrdered TipOrdered (absurd . emptyHasntKey) TipOrdered (absurd . emptyHasntKey)
 
-public export
-hasKeyOnLeft : TotalOrder k o => {y : k} -> Ordered k v o (Bin n x a l r) -> HasKey k v (Bin n x a l r) y -> o y x -> HasKey k v l y
-hasKeyOnLeft _ (HasKeyL h) _ = h
-hasKeyOnLeft (BinOrdered _ _ _ p) (HasKeyR h) e = void (irrefl (transitive e (p h)))
-hasKeyOnLeft _ (HasKeyM _) e = void (irrefl e)
 
-public export
-hasKeyOnRight : TotalOrder k o => {y : k} -> Ordered k v o (Bin n x a l r) -> HasKey k v (Bin n x a l r) y -> o x y -> HasKey k v r y
-hasKeyOnRight (BinOrdered _ p _ _) (HasKeyL h) e = void (irrefl (transitive e (p h)))
-hasKeyOnRight _ (HasKeyR h) _ = h
-hasKeyOnRight _ (HasKeyM _) e = void (irrefl e)
+||| A Bin which has a key which is less than the root has it in the
+||| left part
+hasKeyL : TotalOrder k o
+       => {x : k}
+       -> {y : k}
+       -> {z : v x}
+       -> Ordered k v o (Bin n x z l r)
+       -> HasKey k v (Bin n x z l r) y
+       -> o y x
+       -> HasKey k v l y
+hasKeyL _ (HasKeyL h) _ = h
+hasKeyL _ (HasKeyM _) c = absurd (irrefl c)
+hasKeyL (BinOrdered _ _ _ p) (HasKeyR h) c = absurd (irrefl (transitive (p h) c))
+
+
+||| A Bin which has a key which is less than the root has it in the
+||| right part
+hasKeyR : TotalOrder k o
+       => {x : k}
+       -> {y : k}
+       -> {z : v x}
+       -> Ordered k v o (Bin n x z l r)
+       -> HasKey k v (Bin n x z l r) y
+       -> o x y
+       -> HasKey k v r y
+hasKeyR (BinOrdered _ p _ _) (HasKeyL h) c = absurd (irrefl (transitive (p h) c))
+hasKeyR _ (HasKeyM _) c = absurd (irrefl c)
+hasKeyR _ (HasKeyR h) _ = h
 
 
 {-
 mutual
-  balanceLOrdered : TotalOrder k o => {m : DMap k v} -> Ordered k v o m -> Ordered k v o (balanceL m)
-  balanceLOrdered t@{(Bin n x5 a5 (Bin _ x1 a1 t0 (Bin m x3 a3 t2 t4)) t6)} p = ?w
-  balanceLOrdered {t} p = ?w2
-  {-
-  balanceLOrdered {m} p with (m)
-    _ | (Bin j x5 a5 (Bin _ x1 a1 t0 (Bin i x3 a3 t2 t4)) t6) with (i > length t6)
-      _ | True = ?x -- balance (Bin n x3 a3 (balanceL (bin x1 a1 t0 t2)) (balanceR (bin x5 a5 t4 t6)))
-      _ | False = balanceLOrdered' {m = Bin j x5 a5 (Bin _ x1 a1 t0 (Bin i x3 a3 t2 t4)) t6} p
-    _ | n = balanceLOrdered' {m = n} p
--}
-  balanceLOrdered' : TotalOrder k o => {m : DMap k v} -> Ordered k v o m -> Ordered k v o (balanceL' m)
-  balanceLOrdered' {m = (Bin n x3 a3 (Bin _ x1 a1 t0 t2) t4)} p = if length t0 > length t4
-    then ?v
-    else ?z
-  balanceLOrdered' {m} p = p
+  balanceLOrdered : TotalOrder k o => (m : DMap k v) -> Ordered k v o m -> Ordered k v o (balanceL m)
+  balanceLOrdered t@(Bin n x5 a5 (Bin _ x1 a1 t0 (Bin m x3 a3 t2 t4)) t6) p = if m > length t6
+    then ?x -- balance (Bin n x3 a3 (balanceL (bin x1 a1 t0 t2)) (balanceR (bin x5 a5 t4 t6)))
+    else ?y -- balanceL' t
+  balanceLOrdered p = balanceLOrdered' p
 
-  balanceROrdered : TotalOrder k o => {m : DMap k v} -> Ordered k v o m -> Ordered k v o (balanceR m)
-  balanceROrdered = ?t
+  balanceLOrdered' : TotalOrder k o => (m : DMap k v) -> Ordered k v o m -> Ordered k v o (balanceL' m)
 
-  balanceROrdered' : TotalOrder k o => {m : DMap k v} -> Ordered k v o m -> Ordered k v o (balanceR' m)
-  balanceROrdered' = ?s
+  balanceROrdered : TotalOrder k o => (m : DMap k v) -> Ordered k v o m -> Ordered k v o (balanceR m)
 
-  balanceOrdered : TotalOrder k o => {m : DMap k v} -> Ordered k v o m -> Ordered k v o (balance m)
-  balanceOrdered {m} p = balanceLOrdered {m = balanceR m} (balanceROrdered {m = m} p)
+  balanceROrdered' : TotalOrder k o => (m : DMap k v) -> Ordered k v o m -> Ordered k v o (balanceR' m)
+
+  balanceOrdered : TotalOrder k o => (m : DMap k v) -> Ordered k v o m -> Ordered k v o (balance m)
+  balanceOrdered = ?w -- balanceLOrdered . balanceROrdered
 -}
 
 
 -- also want versions of "alter" etc
+
 public export
-hasKeyLookup : TotalOrder k o => (m : DMap k v) -> (p : Ordered k v o m)  -> (x : k) -> (0 h : HasKey k v m x) -> v x
+hasKeyLookup : TotalOrder k o
+            => (m : DMap k v)
+            -> (p : Ordered k v o m)
+            -> (x : k)
+            -> (0 h : HasKey k v m x)
+            -> v x
 hasKeyLookup (Bin _ x' y l r) p x h with (trichotomy {r = o} x x')
   hasKeyLookup (Bin _ x' y _ _) _ x' _ | (EQ Refl) = y
-  hasKeyLookup (Bin _ x' y l _) p@(BinOrdered q _ _ _) x h | (LT w) = hasKeyLookup l q x (hasKeyOnLeft p h w)
-  hasKeyLookup (Bin _ x' y _ r) p@(BinOrdered _ _ q _) x h | (GT w) = hasKeyLookup r q x (hasKeyOnRight p h w)
+  hasKeyLookup (Bin _ x' y l _) p@(BinOrdered q _ _ _) x h | (LT w) = hasKeyLookup l q x (hasKeyL p h w)
+  hasKeyLookup (Bin _ x' y _ r) p@(BinOrdered _ _ q _) x h | (GT w) = hasKeyLookup r q x (hasKeyR p h w)
 hasKeyLookup Tip _ _ (HasKeyL _) impossible
 hasKeyLookup Tip _ _ (HasKeyR _) impossible
 hasKeyLookup Tip _ _ (HasKeyM _) impossible
@@ -502,6 +527,7 @@ rChildLength : DMap k v -> Nat
 rChildLength Tip = 0
 rChildLength (Bin _ _ _ _ r) = length r
 
+
 ||| Expresses that the tree is balanced in the sense of Chen, and also
 ||| that the length count is correct
 data Balanced : DMap k v -> Type where
@@ -513,3 +539,8 @@ data Balanced : DMap k v -> Type where
              -> Balanced l
              -> Balanced r
              -> Balanced (Bin (length l + 1 + length r) k v l r)
+
+{-
+balanced : Balanced l -> Balanced r -> Balanced (balance (Bin (length l + 1 + length r) k v l r))
+balanced = ?b
+-}

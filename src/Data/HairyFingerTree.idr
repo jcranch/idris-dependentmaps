@@ -121,6 +121,7 @@ viewr (Singleton a x1 y2) = Just (Empty, a, x1, y2)
 viewr (Deep a l m r) = ?vr_2
 
 
+{-
 ||| This implementation packs nodes fairly tightly: given a long list
 ||| most nodes will be node3.
 fromList : (Monoid v, Measured x v, Measured y v) => [(x,y)] -> HairyFingers v x y
@@ -140,3 +141,4 @@ fromList = let
     in deep (digit1 x1 y2) (fromList m) r
 
   in go
+-}

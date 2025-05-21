@@ -11,6 +11,7 @@ depends = contrib,
 
 -- modules to install
 modules = Data.DependentMap,
+          Data.DependentMap2,
           Data.HairyFingerTree,
 	  Data.Misc,
           Data.PrefixMap

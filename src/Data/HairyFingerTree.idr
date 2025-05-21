@@ -97,6 +97,18 @@ mutual
   concat2 : (Monoid v, Measured x v, Measured y v) => HairyFingers v x y -> x -> y -> x -> y -> HairyFingers v x y -> HairyFingers v x y
   concat2 = ?w2
 
+maybeSingleton : Maybe (x, y) -> HairyFingers v x y
+maybeSingleton = ?ms
+
+alterl : (Monoid v, Measured x v, Measured y v, Functor f) => (x -> y -> f (Maybe (x, y))) -> HairyFingers v x y -> Maybe (f (HairyFingers v x y))
+alterl _ Empty = Nothing
+alterl f (Singleton _ x0 y1) = Just (maybeSingleton <$> f x0 y1)
+alterl f (Deep _ (Digit1 a01 x0 y1) m r) = ?at1
+alterl f (Deep _ (Digit2 a03 x0 y1 x2 y3) m r) = ?at2
+
+alterr : (Monoid v, Measured x v, Measured y v, Functor f) => ((x, y) -> f (Maybe (x, y))) -> HairyFingers v x y -> Maybe (f (HairyFingers v x y))
+alterr = ?ar
+
 viewl : (Monoid v, Measured x v, Measured y v) => HairyFingers v x y -> Maybe (v, x, y, HairyFingers v x y)
 viewl Empty = Nothing
 viewl (Singleton a x1 y2) = Just (a, x1, y2, Empty)
@@ -107,3 +119,24 @@ viewr : (Monoid v, Measured x v, Measured y v) => HairyFingers v x y -> Maybe (H
 viewr Empty = Nothing
 viewr (Singleton a x1 y2) = Just (Empty, a, x1, y2)
 viewr (Deep a l m r) = ?vr_2
+
+
+||| This implementation packs nodes fairly tightly: given a long list
+||| most nodes will be node3.
+fromList : (Monoid v, Measured x v, Measured y v) => [(x,y)] -> HairyFingers v x y
+fromList = let
+
+  inner : (x,y) -> [(x,y)] -> (Digit x y, [Node x y])
+  inner (x1,y2) [] = (digit1 x1 y2, [])
+  inner (x1,y2) [(x3,y4)] = (digit2 x1 y2 x3 y4, [])
+  inner (x1,y2) [(x3,y4),(x5,y6)] = (digit1 x1 y2, [node2 x3 y4 x5 y6])
+  inner (x1,y2) ((x3,y4):(x5,y6):p:l) = (node3 x1 y2 x3 y4 x5 y6 :) <$> inner p l
+
+  go : [(x,y)] -> HairyFingers v x y
+  go [] = Empty
+  go [(x1,y2)] = singleton x1 y2
+  go ((x1,y2)::p::t) = let
+    (r,m) = inner p t
+    in deep (digit1 x1 y2) (fromList m) r
+
+  in go

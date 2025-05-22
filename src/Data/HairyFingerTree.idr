@@ -152,6 +152,17 @@ viewr (Deep l m (Digit1 x0 y1)) = let
     Just (r, m') => Deep l m' r
 viewr (Deep l m (Digit2 x0 y1 x2 y3)) = Just (Deep l m (Digit1 x0 y1), x2, y3)
 
+
+||| Either returns an element found, or an indication of whether it's
+||| less than any element, greater than any element, or within
+lookup : (x -> Ordering) -> (y -> Either Ordering x) -> HairyFingers x y -> Either Ordering x
+lookup o p Empty = Nothing
+lookup o p (Singleton x y) = case o x of
+  LT => Nothing
+  EQ => Just x
+  GT => p y
+lookup o p (Deep l m r) = ?d
+
 {-
 ||| This implementation packs nodes fairly tightly: given a long list
 ||| most nodes will be node3.

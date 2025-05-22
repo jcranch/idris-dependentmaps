@@ -1,130 +1,161 @@
 module Data.HairyFingerTree
 
 
-interface Monoid v => Measured x v where
-  measure : x -> v
+data Node : Type -> Type -> Type where
+  Node2 : y -> x -> y -> Node x y
+  Node3 : y -> x -> y -> x -> y -> Node x y
 
 
-data Node : Type -> Type -> Type -> Type where
-  Node2 : v -> y -> x -> y -> Node v x y
-  Node3 : v -> y -> x -> y -> x -> y -> Node v x y
-
-Monoid v => Measured (Node v x y) v where
-  measure (Node2 a _ _ _) = a
-  measure (Node3 a _ _ _ _ _) = a
-
-node2 : (Monoid v, Measured x v, Measured y v) => y -> x -> y -> Node v x y
-node2 y0 x1 y2 = Node2 (measure y0 <+> measure x1 <+> measure y2) y0 x1 y2
-
-node3 : (Monoid v, Measured x v, Measured y v) => y -> x -> y -> x -> y -> Node v x y
-node3 y0 x1 y2 x3 y4 = Node3 (measure y0 <+> measure x1 <+> measure y2 <+> measure x3 <+> measure y4) y0 x1 y2 x3 y4
+data Digit : Type -> Type -> Type where
+  Digit1 : x -> y -> Digit x y
+  Digit2 : x -> y -> x -> y -> Digit x y
 
 
-data Digit : Type -> Type -> Type -> Type where
-  Digit1 : v -> x -> y -> Digit v x y
-  Digit2 : v -> x -> y -> x -> y -> Digit v x y
+data HairyFingers : Type -> Type -> Type where
+  Empty : HairyFingers x y
+  Singleton : x -> y -> HairyFingers x y
+  Deep : Digit x y -> HairyFingers x (Node x y) -> Digit x y -> HairyFingers x y
 
-Monoid v => Measured (Digit v x y) v where
-  measure (Digit1 a _ _) = a
-  measure (Digit2 a _ _ _ _) = a
+appendl : x -> y -> HairyFingers x y -> HairyFingers x y
+appendl x0 y1 Empty = Singleton x0 y1
+appendl x0 y1 (Singleton x2 y3) = Deep (Digit1 x0 y1) Empty (Digit1 x2 y3)
+appendl x0 y1 (Deep (Digit1 x2 y3) m r) = Deep (Digit2 x0 y1 x2 y3) m r
+appendl x0 y1 (Deep (Digit2 x2 y3 x4 y5) m r) = Deep (Digit1 x0 y1) (appendl x2 (Node2 y3 x4 y5) m) r
 
-digit1 : (Monoid v, Measured x v, Measured y v) => x -> y -> Digit v x y
-digit1 x1 y2 = Digit1 (measure x1 <+> measure y2) x1 y2
+appendr : HairyFingers x y -> x -> y -> HairyFingers x y
+appendr Empty x1 y0 = Singleton x1 y0
+appendr (Singleton x3 y2) x1 y0 = Deep (Digit1 x3 y2) Empty (Digit1 x1 y0)
+appendr (Deep l m (Digit1 x3 y2)) x1 y0 = Deep l m (Digit2 x3 y2 x1 y0)
+appendr (Deep l m (Digit2 x5 y4 x3 y2)) x1 y0 = Deep l (appendr m x5 (Node2 y4 x3 y2)) (Digit1 x1 y0)
 
-digit2 : (Monoid v, Measured x v, Measured y v) => x -> y -> x -> y -> Digit v x y
-digit2 x1 y2 x3 y4 = Digit2 (measure x1 <+> measure y2 <+> measure x3 <+> measure y4) x1 y2 x3 y4
+-- It's possible and maybe desirable to give a more efficient implementation
+appendl2 : x -> y -> x -> y -> HairyFingers x y -> HairyFingers x y
+appendl2 x0 y1 x2 y3 t = appendl x0 y1 (appendl x2 y3 t)
+
+-- It's possible and maybe desirable to give a more efficient implementation
+appendr2 : HairyFingers x y -> x -> y -> x -> y -> HairyFingers x y
+appendr2 t x0 y1 x2 y3 = appendr (appendr t x0 y1) x2 y3
+
+-- It's possible and maybe desirable to give a more efficient implementation
+appendl3 : x -> y -> x -> y -> x -> y -> HairyFingers x y -> HairyFingers x y
+appendl3 x0 y1 x2 y3 x4 y5 t = appendl x0 y1 (appendl x2 y3 (appendl x4 y5 t))
+
+-- It's possible and maybe desirable to give a more efficient implementation
+appendr3 : HairyFingers x y -> x -> y -> x -> y -> x -> y -> HairyFingers x y
+appendr3 t x0 y1 x2 y3 x4 y5 = appendr (appendr (appendr t x0 y1) x2 y3) x4 y5
 
 
-data HairyFingers : Type -> Type -> Type -> Type where
-  Empty : HairyFingers v x y
-  Singleton : v -> x -> y -> HairyFingers v x y
-  Deep : v -> Digit v x y -> HairyFingers v x (Node v x y) -> Digit v x y -> HairyFingers v x y
+concat2 : HairyFingers x y -> x -> y -> x -> y -> HairyFingers x y -> HairyFingers x y
+concat2 t1 x0 y1 x2 y3 Empty = appendr2 t1 x0 y1 x2 y3
+concat2 Empty x0 y1 x2 y3 t2 = appendl2 x0 y1 x2 y3 t2
+concat2 (Singleton x0 y1) x2 y3 x4 y5 t2 = appendl3 x0 y1 x2 y3 x4 y5 t2
+concat2 t1 x0 y1 x2 y3 (Singleton x4 y5) = appendr3 t1 x0 y1 x2 y3 x4 y5
+concat2 (Deep l1 m1 (Digit1 x0 y1)) x2 y3 x4 y5 (Deep (Digit1 x6 y7) m2 r2) = Deep l1 (concat2 m1 x0 (Node2 y1 x2 y3) x4 (Node2 y5 x6 y7) m2) r2
+concat2 (Deep l1 m1 (Digit1 x0 y1)) x2 y3 x4 y5 (Deep (Digit2 x6 y7 x8 y9) m2 r2) = Deep l1 (concat2 m1 x0 (Node3 y1 x2 y3 x4 y5) x6 (Node2 y7 x8 y9) m2) r2
+concat2 (Deep l1 m1 (Digit2 x0 y1 x2 y3)) x4 y5 x6 y7 (Deep (Digit1 x8 y9) m2 r2) = Deep l1 (concat2 m1 x0 (Node2 y1 x2 y3) x4 (Node3 y5 x6 y7 x8 y9) m2) r2
+concat2 (Deep l1 m1 (Digit2 x0 y1 x2 y3)) x4 y5 x6 y7 (Deep (Digit2 x8 y9 xa yb) m2 r2) = Deep l1 (concat2 m1 x0 (Node3 y1 x2 y3 x4 y5) x6 (Node3 y7 x8 y9 xa yb) m2) r2
 
-Monoid v => Measured (HairyFingers v x y) v where
-  measure Empty = neutral
-  measure (Singleton a _ _) = a
-  measure (Deep a _ _ _) = a
+concat1 : HairyFingers x y -> x -> y -> HairyFingers x y -> HairyFingers x y
+concat1 t1 x1 y2 Empty = appendr t1 x1 y2
+concat1 Empty x1 y2 t2 = appendl x1 y2 t2
+concat1 (Singleton x0 y1) x2 y3 t2 = appendl2 x0 y1 x2 y3 t2
+concat1 t1 x0 y1 (Singleton x2 y3) = appendr2 t1 x0 y1 x2 y3
+concat1 (Deep l1 m1 (Digit1 x0 y1)) x2 y3 (Deep (Digit1 x4 y5) m2 r2) = Deep l1 (concat1 m1 x0 (Node2 y1 x2 y3) m2) r2
+concat1 (Deep l1 m1 (Digit1 x0 y1)) x2 y3 (Deep (Digit2 x4 y5 x6 y7) m2 r2) = Deep l1 (concat1 m1 x0 (Node3 y1 x2 y3 x4 y5) m2) r2
+concat1 (Deep l1 m1 (Digit2 x0 y1 x2 y3)) x4 y5 (Deep (Digit1 x6 y7) m2 r2) = Deep l1 (concat1 m1 x0 (Node3 y1 x2 y3 x4 y5) m2) r2
+concat1 (Deep l1 m1 (Digit2 x0 y1 x2 y3)) x4 y5 (Deep (Digit2 x6 y7 x8 y9) m2 r2) = Deep l1 (concat2 m1 x0 (Node2 y1 x2 y3) x4 (Node2 y5 x6 y7) m2) r2
 
-singleton : (Monoid v, Measured x v, Measured y v) => x -> y -> HairyFingers v x y
-singleton x0 y1 = Singleton (measure x0 <+> measure y1) x0 y1
+concat : HairyFingers x y -> HairyFingers x y -> HairyFingers x y
+concat t1 Empty = t1
+concat Empty t2 = t2
+concat (Singleton x0 y1) (Singleton x2 y3) = Deep (Digit1 x0 y1) Empty (Digit1 x2 y3)
+concat (Singleton x0 y1) t2 = appendl x0 y1 t2
+concat t1 (Singleton x1 y0) = appendr t1 x1 y0
+concat (Deep l1 m1 (Digit1 x0 y1)) (Deep (Digit1 x2 y3) m2 r2) = Deep l1 (concat1 m1 x0 (Node2 y1 x2 y3) m2) r2
+concat (Deep l1 m1 (Digit1 x0 y1)) (Deep (Digit2 x2 y3 x4 y5) m2 r2) = Deep l1 (concat1 m1 x0 (Node3 y1 x2 y3 x4 y5) m2) r2
+concat (Deep l1 m1 (Digit2 x0 y1 x2 y3)) (Deep (Digit1 x4 y5) m2 r2) = Deep l1 (concat1 m1 x0 (Node3 y1 x2 y3 x4 y5) m2) r2
+concat (Deep l1 m1 (Digit2 x0 y1 x2 y3)) (Deep (Digit2 x4 y5 x6 y7) m2 r2) = Deep l1 (concat2 m1 x0 (Node2 y1 x2 y3) x4 (Node2 y5 x6 y7) m2) r2
 
-appendl : (Monoid v, Measured x v, Measured y v) => v -> x -> y -> HairyFingers v x y -> HairyFingers v x y
-appendl a01 x0 y1 Empty = Singleton a01 x0 y1
-appendl a01 x0 y1 (Singleton a23 x2 y3) = Deep (a01 <+> a23) (Digit1 a01 x0 y1) Empty (Digit1 a23 x2 y3)
-appendl a01 x0 y1 (Deep a2n (Digit1 a23 x2 y3) m r) = Deep (a01 <+> a2n) (Digit2 (a01 <+> a23) x0 y1 x2 y3) m r
-appendl a01 x0 y1 (Deep a2n (Digit2 a25 x2 y3 x4 y5) m r) = Deep (a01 <+> a2n) (Digit1 a01 x0 y1) (appendl a25 x2 (node2 y3 x4 y5) m) r
 
-appendr : (Monoid v, Measured x v, Measured y v) => HairyFingers v x y -> v -> x -> y -> HairyFingers v x y
-appendr Empty a10 x1 y0 = Singleton a10 x1 y0
-appendr (Singleton a32 x3 y2) a10 x1 y0 = Deep (a32 <+> a10) (Digit1 a32 x3 y2) Empty (Digit1 a10 x1 y0)
-appendr (Deep an2 l m (Digit1 a32 x3 y2)) a10 x1 y0 = Deep (an2 <+> a10) l m (Digit2 (a32 <+> a10) x3 y2 x1 y0)
-appendr (Deep an2 l m (Digit2 a52 x5 y4 x3 y2)) a10 x1 y0 = Deep (an2 <+> a10) l (appendr m a52 x5 (node2 y4 x3 y2)) (Digit1 a10 x1 y0)
+maybeSingleton : Maybe (x, y) -> HairyFingers x y
+maybeSingleton Nothing = Empty
+maybeSingleton (Just (x,y)) = Singleton x y
 
-appendl2 : (Monoid v, Measured x v, Measured y v) => v -> x -> y -> v -> x -> y -> HairyFingers v x y -> HairyFingers v x y
-appendl2 = ?al2
 
-appendr2 : (Monoid v, Measured x v, Measured y v) => HairyFingers v x y -> v -> x -> y -> v -> x -> y -> HairyFingers v x y
-appendr2 = ?ar2
+digitToTree : Digit x y -> HairyFingers x y
+digitToTree (Digit1 x0 y1) = Singleton x0 y1
+digitToTree (Digit2 x0 y1 x2 y3) = Deep (Digit1 x0 y1) Empty (Digit1 x2 y3)
 
-appendl3 : (Monoid v, Measured x v, Measured y v) => v -> x -> y -> v -> x -> y -> v -> x -> y -> HairyFingers v x y -> HairyFingers v x y
-appendl3 = ?al3
 
-appendr3 : (Monoid v, Measured x v, Measured y v) => HairyFingers v x y -> v -> x -> y -> v -> x -> y -> v -> x -> y -> HairyFingers v x y
-appendr3 = ?ar3
-
-mutual
-  concat : (Monoid v, Measured x v, Measured y v) => HairyFingers v x y -> HairyFingers v x y -> HairyFingers v x y
-  concat t1 Empty = t1
-  concat Empty t2 = t2
-  concat (Singleton a01 x0 y1) (Singleton a23 x2 y3) = Deep (a01 <+> a23) (Digit1 a01 x0 y1) Empty (Digit1 a23 x2 y3)
-  concat (Singleton a01 x0 y1) d@(Deep _ _ _ _) = appendl a01 x0 y1 d
-  concat d@(Deep _ _ _ _) (Singleton a10 x1 y0) = appendr d a10 x1 y0
-  concat (Deep a l1 m1 (Digit1 b x1 y2)) (Deep a' (Digit1 b' x3 y4) m2 r2) = ?w_5
-  concat (Deep a l1 m1 (Digit1 b x1 y2)) (Deep a' (Digit2 b' x3 y4 x5 y6) m2 r2) = ?w_6
-  concat (Deep a l1 m1 (Digit2 b x1 y2 x3 y4)) (Deep a' (Digit1 b' x5 y6) m2 r2) = ?w_7
-  concat (Deep a l1 m1 (Digit2 b x1 y2 x3 y4)) (Deep a' (Digit2 b' x5 y6 x7 y8) m2 r2) = ?w_8
-
-  concat1 : (Monoid v, Measured x v, Measured y v) => HairyFingers v x y -> v -> x -> y -> HairyFingers v x y -> HairyFingers v x y
-  concat1 t1 a12 x1 y2 Empty = appendr t1 a12 x1 y2
-  concat1 Empty a12 x1 y2 t2 = appendl a12 x1 y2 t2
-  concat1 (Singleton a01 x0 y1) a23 x2 y3 t2 = ?v1
-  concat1 t1 a01 x0 y1 (Singleton a23 x2 y3) = ?v2
-  concat1 (Deep a l1 m1 (Digit1 b x1 y2)) a34 x3 y4 (Deep a' (Digit1 b' x5 y6) m2 r2) = ?v_5
-  concat1 (Deep a l1 m1 (Digit1 b x1 y2)) a34 x3 y4 (Deep a' (Digit2 b' x5 y6 x7 y8) m2 r2) = ?v_6
-  concat1 (Deep a l1 m1 (Digit2 b x1 y2 x3 y4)) a56 x5 y6 (Deep a' (Digit1 b' x7 y8) m2 r2) = ?v_7
-  concat1 (Deep a l1 m1 (Digit2 b x1 y2 x3 y4)) a56 x5 y6 (Deep a' (Digit2 b' x7 y8 x9 y10) m2 r2) = ?v_8
-
-  concat2 : (Monoid v, Measured x v, Measured y v) => HairyFingers v x y -> x -> y -> x -> y -> HairyFingers v x y -> HairyFingers v x y
-  concat2 = ?w2
-
-maybeSingleton : Maybe (x, y) -> HairyFingers v x y
-maybeSingleton = ?ms
-
-alterl : (Monoid v, Measured x v, Measured y v, Functor f) => (x -> y -> f (Maybe (x, y))) -> HairyFingers v x y -> Maybe (f (HairyFingers v x y))
+alterl : (Functor f) => (x -> y -> f (Maybe (x, y))) -> HairyFingers x y -> Maybe (f (HairyFingers x y))
 alterl _ Empty = Nothing
-alterl f (Singleton _ x0 y1) = Just (maybeSingleton <$> f x0 y1)
-alterl f (Deep _ (Digit1 a01 x0 y1) m r) = ?at1
-alterl f (Deep _ (Digit2 a03 x0 y1 x2 y3) m r) = ?at2
+alterl f (Singleton x0 y1) = Just (maybeSingleton <$> f x0 y1)
+alterl f (Deep (Digit1 x0 y1) m r) = let
+  h : x -> Node x y -> (Digit x y, Maybe (x, Node x y))
+  h x0 (Node2 y1 x2 y3) = (Digit2 x0 y1 x2 y3, Nothing)
+  h x0 (Node3 y1 x2 y3 x4 y5) = (Digit1 x0 y1, Just (x2, Node2 y3 x4 y5))
+  g : Maybe (x, y) -> HairyFingers x y
+  g (Just (x0', y1')) = Deep (Digit1 x0' y1') m r
+  g Nothing = case alterl h m of
+    Nothing => digitToTree r
+    Just (l, m') => Deep l m' r
+  in Just (g <$> f x0 y1)
+alterl f (Deep (Digit2 x0 y1 x2 y3) m r) = let
+  g : Maybe (x, y) -> Digit x y
+  g Nothing = Digit1 x2 y3
+  g (Just (x0', y1')) = Digit2 x0' y1' x2 y3
+  h : Digit x y -> HairyFingers x y
+  h l' = Deep l' m r
+  in Just (h . g <$> f x0 y1)
 
-alterr : (Monoid v, Measured x v, Measured y v, Functor f) => ((x, y) -> f (Maybe (x, y))) -> HairyFingers v x y -> Maybe (f (HairyFingers v x y))
-alterr = ?ar
-
-viewl : (Monoid v, Measured x v, Measured y v) => HairyFingers v x y -> Maybe (v, x, y, HairyFingers v x y)
+viewl : HairyFingers x y -> Maybe (x, y, HairyFingers x y)
 viewl Empty = Nothing
-viewl (Singleton a x1 y2) = Just (a, x1, y2, Empty)
-viewl (Deep a (Digit1 a12 x1 y2) m r) = ?vl_3
-viewl (Deep a (Digit2 a14 x1 y2 x3 y4) m r) = ?vl_4
+viewl (Singleton x0 y1) = Just (x0, y1, Empty)
+viewl (Deep (Digit1 x0 y1) m r) = let
+  h : x -> Node x y -> (Digit x y, Maybe (x, Node x y))
+  h x0 (Node2 y1 x2 y3) = (Digit2 x0 y1 x2 y3, Nothing)
+  h x0 (Node3 y1 x2 y3 x4 y5) = (Digit1 x0 y1, Just (x2, Node2 y3 x4 y5))
+  in Just . (x0,y1,) $ case alterl h m of
+    Nothing => digitToTree r
+    Just (l, m') => Deep l m' r
+viewl (Deep (Digit2 x0 y1 x2 y3) m r) = Just (x0, y1, Deep (Digit1 x2 y3) m r)
 
-viewr : (Monoid v, Measured x v, Measured y v) => HairyFingers v x y -> Maybe (HairyFingers v x y, v, x, y)
+
+alterr : (Functor f) => (x -> y -> f (Maybe (x, y))) -> HairyFingers x y -> Maybe (f (HairyFingers x y))
+alterr _ Empty = Nothing
+alterr f (Singleton x0 y1) = Just (maybeSingleton <$> f x0 y1)
+alterr f (Deep l m (Digit1 x0 y1)) = let
+  h : x -> Node x y -> (Digit x y, Maybe (x, Node x y))
+  h x0 (Node2 y1 x2 y3) = (Digit2 x0 y1 x2 y3, Nothing)
+  h x0 (Node3 y1 x2 y3 x4 y5) = (Digit1 x4 y5, Just (x0, Node2 y1 x2 y3))
+  g : Maybe (x, y) -> HairyFingers x y
+  g (Just (x0', y1')) = Deep l m (Digit1 x0' y1')
+  g Nothing = case alterr h m of
+    Nothing => digitToTree l
+    Just (r, m') => Deep l m r
+  in Just (g <$> f x0 y1)
+alterr f (Deep l m (Digit2 x0 y1 x2 y3)) = let
+  g : Maybe (x, y) -> Digit x y
+  g Nothing = Digit1 x0 y1
+  g (Just (x2', y3')) = Digit2 x0 y1 x2' y3'
+  in Just (Deep l m . g <$> f x2 y3)
+
+viewr : HairyFingers x y -> Maybe (HairyFingers x y, x, y)
 viewr Empty = Nothing
-viewr (Singleton a x1 y2) = Just (Empty, a, x1, y2)
-viewr (Deep a l m r) = ?vr_2
-
+viewr (Singleton x0 y1) = Just (Empty, x0, y1)
+viewr (Deep l m (Digit1 x0 y1)) = let
+  h : x -> Node x y -> (Digit x y, Maybe (x, Node x y))
+  h x0 (Node2 y1 x2 y3) = (Digit2 x0 y1 x2 y3, Nothing)
+  h x0 (Node3 y1 x2 y3 x4 y5) = (Digit1 x4 y5, Just (x0, Node2 y1 x2 y3))
+  in Just . (,x0,y1) $ case alterl h m of
+    Nothing => digitToTree l
+    Just (r, m') => Deep l m' r
+viewr (Deep l m (Digit2 x0 y1 x2 y3)) = Just (Deep l m (Digit1 x0 y1), x2, y3)
 
 {-
 ||| This implementation packs nodes fairly tightly: given a long list
 ||| most nodes will be node3.
-fromList : (Monoid v, Measured x v, Measured y v) => [(x,y)] -> HairyFingers v x y
+fromList : (Monoid v, Measured x v, Measured y v) => [(x,y)] -> HairyFingers x y
 fromList = let
 
   inner : (x,y) -> [(x,y)] -> (Digit x y, [Node x y])
@@ -133,7 +164,7 @@ fromList = let
   inner (x1,y2) [(x3,y4),(x5,y6)] = (digit1 x1 y2, [node2 x3 y4 x5 y6])
   inner (x1,y2) ((x3,y4):(x5,y6):p:l) = (node3 x1 y2 x3 y4 x5 y6 :) <$> inner p l
 
-  go : [(x,y)] -> HairyFingers v x y
+  go : [(x,y)] -> HairyFingers x y
   go [] = Empty
   go [(x1,y2)] = singleton x1 y2
   go ((x1,y2)::p::t) = let
@@ -141,4 +172,6 @@ fromList = let
     in deep (digit1 x1 y2) (fromList m) r
 
   in go
+
+
 -}

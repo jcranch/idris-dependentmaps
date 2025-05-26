@@ -316,9 +316,10 @@ deepMaybeR : Digit x y -> HairyFingers x (Node x y) -> Maybe (Digit x y) -> Hair
 deepMaybeR l m Nothing = deepNoR l m
 deepMaybeR l m (Just r) = Deep l m r
 
+{-
 -- Should we test the left half first in the case of a digit2?
 splitDigit : (x -> Ordering) -> (y -> Ordering) -> Digit x y -> Either Bool (Maybe (Digit x y), Maybe (x,y), Maybe (Digit x y))
-splitDigit f g (Digit1 x0 y1) = case f x0 y1 of
+splitDigit f g (Digit1 x0 y1) = ?sd {- case f x0 y1 of
   LT => Left True
   EQ => Right (Nothing, Just (x0, y1), Nothing)
   GT => Left False
@@ -328,7 +329,8 @@ splitDigit f g (Digit2 x0 y1 x2 y3) = case f x2 y3 of
     EQ => Right (Nothing, Just (x0, y1), Just (Digit1 x2 y3))
     GT => Right (Just (Digit1 x0 y1), Nothing, Just (Digit1 x2 y3))
   EQ => Right (Just (Digit1 x0 y1), Just (x2, y3), Nothing)
-  GT => Left False
+  GT => Left False -}
+-}
 
 -- This function sucks, in that we're descending into the structure twice.
 nodeSearch : (x -> y -> Ordering) -> x -> Node x y -> Ordering
@@ -344,7 +346,7 @@ splitNavigate f (Singleton x0 y1) = case f x0 y1 of
   LT => Left True
   EQ => Right (Empty, Just (x0, y1), Empty)
   GT => Left False
-splitNavigate f (Deep l m r) = case splitDigit f r of
+splitNavigate f (Deep l m r) = ?sn {- case splitDigit f r of
   Right (t1, u, t2) => Right (deepMaybeR l m t1, u, maybeDigitToTree t2)
   Left False => Left False
   Left True => case splitNavigate (nodeSearch f) m of
@@ -353,10 +355,98 @@ splitNavigate f (Deep l m r) = case splitDigit f r of
     Left True => case splitDigit f l of
       Right (t1, u, t2) => Right (maybeDigitToTree t1, u, deepMaybeL t2 m r)
       Left False => Right (digitToTree l, Nothing, deepNoL m r)
-      Left True => Left True
+      Left True => Left True -}
 
 split : (x -> y -> Ordering) -> HairyFingers x y -> (HairyFingers x y, Maybe (x,y), HairyFingers x y)
 split f t = case splitNavigate f t of
   Right a => a
   Left True => (Empty, Nothing, t)
   Left False => (t, Nothing, Empty)
+
+
+data DigitHasKey : (f : x -> z -> Type) -> (g : y -> z -> Type) -> Digit x y -> z -> Type where
+  DigitHasKey11 : {0 x0 : x} -> {0 y1 : y} -> f x0 z -> DigitHasKey f g (Digit1 x0 y1) z
+  DigitHasKey12 : {0 x0 : x} -> {0 y1 : y} -> g y1 z -> DigitHasKey f g (Digit1 x0 y1) z
+  DigitHasKey21 : {0 x0 : x} -> {0 y1 : y} -> {0 x2 : x} -> {0 y3 : y} -> f x0 z -> DigitHasKey f g (Digit2 x0 y1 x2 y3) z
+  DigitHasKey22 : {0 x0 : x} -> {0 y1 : y} -> {0 x2 : x} -> {0 y3 : y} -> g y1 z -> DigitHasKey f g (Digit2 x0 y1 x2 y3) z
+  DigitHasKey23 : {0 x0 : x} -> {0 y1 : y} -> {0 x2 : x} -> {0 y3 : y} -> f x2 z -> DigitHasKey f g (Digit2 x0 y1 x2 y3) z
+  DigitHasKey24 : {0 x0 : x} -> {0 y1 : y} -> {0 x2 : x} -> {0 y3 : y} -> g y3 z -> DigitHasKey f g (Digit2 x0 y1 x2 y3) z
+
+data NodeHasKey : (f : x -> z -> Type) -> (g : y -> z -> Type) -> Node x y -> z -> Type where
+  NodeHasKey21 : {0 y0 : y} -> {0 x1 : x} -> {0 y2 : y} -> g y0 z -> NodeHasKey f g (Node2 y0 x1 y2) z
+  NodeHasKey22 : {0 y0 : y} -> {0 x1 : x} -> {0 y2 : y} -> f x1 z -> NodeHasKey f g (Node2 y0 x1 y2) z
+  NodeHasKey23 : {0 y0 : y} -> {0 x1 : x} -> {0 y2 : y} -> g y2 z -> NodeHasKey f g (Node2 y0 x1 y2) z
+  NodeHasKey31 : {0 y0 : y} -> {0 x1 : x} -> {0 y2 : y} -> {0 x3 : x} -> {0 y4 : y} -> g y0 z -> NodeHasKey f g (Node3 y0 x1 y2 x3 y4) z
+  NodeHasKey32 : {0 y0 : y} -> {0 x1 : x} -> {0 y2 : y} -> {0 x3 : x} -> {0 y4 : y} -> f x1 z -> NodeHasKey f g (Node3 y0 x1 y2 x3 y4) z
+  NodeHasKey33 : {0 y0 : y} -> {0 x1 : x} -> {0 y2 : y} -> {0 x3 : x} -> {0 y4 : y} -> g y2 z -> NodeHasKey f g (Node3 y0 x1 y2 x3 y4) z
+  NodeHasKey34 : {0 y0 : y} -> {0 x1 : x} -> {0 y2 : y} -> {0 x3 : x} -> {0 y4 : y} -> f x3 z -> NodeHasKey f g (Node3 y0 x1 y2 x3 y4) z
+  NodeHasKey35 : {0 y0 : y} -> {0 x1 : x} -> {0 y2 : y} -> {0 x3 : x} -> {0 y4 : y} -> g y4 z -> NodeHasKey f g (Node3 y0 x1 y2 x3 y4) z
+
+data HasKey : (f : x -> z -> Type) -> (g : y -> z -> Type) -> HairyFingers x y -> z -> Type where
+  HasKeyX : {0 x0 : x} -> {0 y1 : y} -> f x0 z -> HasKey f g (Singleton x0 y1) z
+  HasKeyY : {0 x0 : x} -> {0 y1 : y} -> g y1 z -> HasKey f g (Singleton x0 y1) z
+  HasKeyL : DigitHasKey f g l z -> HasKey f g (Deep l m r) z
+  HasKeyM : HasKey f (NodeHasKey f g) m z -> HasKey f g (Deep l m r) z
+  HasKeyR : DigitHasKey f g r z -> HasKey f g (Deep l m r) z
+
+
+data DigitOrdered : (o : z -> z -> Type) -> (f : x -> z -> Type) -> (g : y -> z -> Type) -> (p : x -> Type) -> (q : y -> Type) -> Digit x y -> Type where
+  DigitOrdered1 : {0 x0 : x}
+               -> {0 y1 : y}
+               -> (ox0 : p x0)
+               -> (x0y1 : {u : z} -> {v : z} -> f x0 u -> g y1 v -> o u v)
+               -> (oy1 : q y1)
+               -> DigitOrdered o f g p q (Digit1 x0 y1)
+  DigitOrdered2 : {0 x0 : x}
+               -> {0 y1 : y}
+               -> {0 x2 : x}
+               -> {0 y3 : y}
+               -> (ox0 : p x0)
+               -> (x0y1 : {u : z} -> {v : z} -> f x0 u -> g y1 v -> o u v)
+               -> (oy1 : q y1)
+               -> (y1x2 : {u : z} -> {v : z} -> g y1 u -> f x2 v -> o u v)
+               -> (ox2 : p x2)
+               -> (x2y3 : {u : z} -> {v : z} -> f x2 u -> g y3 v -> o u v)
+               -> (oy3 : q y3)
+               -> DigitOrdered o f g p q (Digit2 x0 y1 x2 y3)
+
+data NodeOrdered : (o : z -> z -> Type) -> (f : x -> z -> Type) -> (g : y -> z -> Type) -> (p : x -> Type) -> (q : y -> Type) -> Node x y -> Type where
+  NodeOrdered2 : {0 y0 : y}
+              -> {0 x1 : x}
+              -> {0 y2 : y}
+              -> (oy0 : q y0)
+              -> (y0x1 : {u : z} -> {v : z} -> g y0 u -> f x1 v -> o u v)
+              -> (ox1 : p x1)
+              -> (x1y2 : {u : z} -> {v : z} -> f x1 u -> g y2 v -> o u v)
+              -> (oy2 : q y2)
+              -> NodeOrdered o f g p q (Node2 y0 x1 y2)
+  NodeOrdered3 : {0 y0 : y}
+              -> {0 x1 : x}
+              -> {0 y2 : y}
+              -> {0 x3 : x}
+              -> {0 y4 : y}
+              -> (oy0 : q y0)
+              -> (y0x1 : {u : z} -> {v : z} -> g y0 u -> f x1 v -> o u v)
+              -> (ox1 : p x1)
+              -> (x1y2 : {u : z} -> {v : z} -> f x1 u -> g y2 v -> o u v)
+              -> (oy2 : q y2)
+              -> (y2x3 : {u : z} -> {v : z} -> g y2 u -> f x3 v -> o u v)
+              -> (ox3 : p x3)
+              -> (x3y4 : {u : z} -> {v : z} -> f x3 u -> g y4 v -> o u v)
+              -> (oy4 : q y4)
+              -> NodeOrdered o f g p q (Node3 y0 x1 y2 x3 y4)
+
+data Ordered : (o : z -> z -> Type) -> (f : x -> z -> Type) -> (g : y -> z -> Type) -> (p : x -> Type) -> (q : y -> Type) -> HairyFingers x y -> Type where
+  OrderedEmpty : Ordered o f g p q Empty
+  OrderedSingleton : {0 x0 : x}
+                  -> {0 y1 : y}
+                  -> (ox0 : p x0)
+                  -> (x0y1 : {u : z} -> {v : z} -> f x0 u -> g y1 v -> o u v)
+                  -> (oy1 : q y1)
+                  -> Ordered o f g p q (Singleton x0 y1)
+  OrderedDeep : (ol : DigitOrdered o f g p q l)
+             -> (lm : {u : z} -> {v : z} -> DigitHasKey f g l u -> HasKey f (NodeHasKey f g) m v -> o u v)
+             -> (om : Ordered o f (NodeHasKey f g) p (NodeOrdered o f g p q) m)
+             -> (mr : {u : z} -> {v : z} -> HasKey f (NodeHasKey f g) m u -> DigitHasKey f g r v -> o u v)
+             -> (or : DigitOrdered o f g p q r)
+             -> Ordered o f g p q (Deep l m r)

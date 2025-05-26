@@ -89,6 +89,10 @@ digitToTree : (d : Digit x y) -> HairyFingers x y
 digitToTree (Digit1 x0 y1) = Singleton x0 y1
 digitToTree (Digit2 x0 y1 x2 y3) = Deep (Digit1 x0 y1) Empty (Digit1 x2 y3)
 
+maybeDigitToTree : Maybe (Digit x y) -> HairyFingers x y
+maybeDigitToTree Nothing = Empty
+maybeDigitToTree (Just d) = digitToTree d
+
 
 
 -- Could just implement lookup as adjust, valued in a constant functor
@@ -204,27 +208,30 @@ fromLookup Nothing = Left False
 
 
 
-||| A lens on the leftmost element (if it exists)
-alterl : (Functor f) => (x -> y -> f (Maybe (x, y))) -> HairyFingers x y -> Maybe (f (HairyFingers x y))
-alterl _ Empty = Nothing
-alterl f (Singleton x0 y1) = Just (maybeSingleton <$> f x0 y1)
-alterl f (Deep (Digit1 x0 y1) m r) = let
-  h : x -> Node x y -> (Digit x y, Maybe (x, Node x y))
-  h x0 (Node2 y1 x2 y3) = (Digit2 x0 y1 x2 y3, Nothing)
-  h x0 (Node3 y1 x2 y3 x4 y5) = (Digit1 x0 y1, Just (x2, Node2 y3 x4 y5))
-  g : Maybe (x, y) -> HairyFingers x y
-  g (Just (x0', y1')) = Deep (Digit1 x0' y1') m r
-  g Nothing = case alterl h m of
-    Nothing => digitToTree r
-    Just (l, m') => Deep l m' r
-  in Just (g <$> f x0 y1)
-alterl f (Deep (Digit2 x0 y1 x2 y3) m r) = let
-  g : Maybe (x, y) -> Digit x y
-  g Nothing = Digit1 x2 y3
-  g (Just (x0', y1')) = Digit2 x0' y1' x2 y3
-  h : Digit x y -> HairyFingers x y
-  h l' = Deep l' m r
-  in Just (h . g <$> f x0 y1)
+mutual
+  deepNoL : HairyFingers x (Node x y) -> Digit x y -> HairyFingers x y
+  deepNoL m r = let
+    h : x -> Node x y -> (Digit x y, Maybe (x, Node x y))
+    h x0 (Node2 y1 x2 y3) = (Digit2 x0 y1 x2 y3, Nothing)
+    h x0 (Node3 y1 x2 y3 x4 y5) = (Digit1 x0 y1, Just (x2, Node2 y3 x4 y5))
+    in case alterl h m of
+      Nothing => digitToTree r
+      Just (l, m') => Deep l m' r
+
+  ||| A lens on the leftmost element (if it exists)
+  alterl : (Functor f) => (x -> y -> f (Maybe (x, y))) -> HairyFingers x y -> Maybe (f (HairyFingers x y))
+  alterl _ Empty = Nothing
+  alterl f (Singleton x0 y1) = Just (maybeSingleton <$> f x0 y1)
+  alterl f (Deep (Digit1 x0 y1) m r) = let
+    g : Maybe (x, y) -> HairyFingers x y
+    g (Just (x0', y1')) = Deep (Digit1 x0' y1') m r
+    g Nothing = deepNoL m r
+    in Just (g <$> f x0 y1)
+  alterl f (Deep (Digit2 x0 y1 x2 y3) m r) = let
+    g : Maybe (x, y) -> Digit x y
+    g Nothing = Digit1 x2 y3
+    g (Just (x0', y1')) = Digit2 x0' y1' x2 y3
+    in Just ((\z => Deep z m r) . g <$> f x0 y1)
 
 -- Could just implement this in terms of alterl with a constant functor
 viewl : HairyFingers x y -> Maybe (x, y, HairyFingers x y)
@@ -240,25 +247,30 @@ viewl (Deep (Digit1 x0 y1) m r) = let
 viewl (Deep (Digit2 x0 y1 x2 y3) m r) = Just (x0, y1, Deep (Digit1 x2 y3) m r)
 
 
-||| A lens on the rightmost element (if it exists)
-alterr : (Functor f) => (x -> y -> f (Maybe (x, y))) -> HairyFingers x y -> Maybe (f (HairyFingers x y))
-alterr _ Empty = Nothing
-alterr f (Singleton x0 y1) = Just (maybeSingleton <$> f x0 y1)
-alterr f (Deep l m (Digit1 x0 y1)) = let
-  h : x -> Node x y -> (Digit x y, Maybe (x, Node x y))
-  h x0 (Node2 y1 x2 y3) = (Digit2 x0 y1 x2 y3, Nothing)
-  h x0 (Node3 y1 x2 y3 x4 y5) = (Digit1 x4 y5, Just (x0, Node2 y1 x2 y3))
-  g : Maybe (x, y) -> HairyFingers x y
-  g (Just (x0', y1')) = Deep l m (Digit1 x0' y1')
-  g Nothing = case alterr h m of
-    Nothing => digitToTree l
-    Just (r, m') => Deep l m r
-  in Just (g <$> f x0 y1)
-alterr f (Deep l m (Digit2 x0 y1 x2 y3)) = let
-  g : Maybe (x, y) -> Digit x y
-  g Nothing = Digit1 x0 y1
-  g (Just (x2', y3')) = Digit2 x0 y1 x2' y3'
-  in Just (Deep l m . g <$> f x2 y3)
+mutual
+  deepNoR : Digit x y -> HairyFingers x (Node x y) -> HairyFingers x y
+  deepNoR l m = let
+    h : x -> Node x y -> (Digit x y, Maybe (x, Node x y))
+    h x0 (Node2 y1 x2 y3) = (Digit2 x0 y1 x2 y3, Nothing)
+    h x0 (Node3 y1 x2 y3 x4 y5) = (Digit1 x4 y5, Just (x0, Node2 y1 x2 y3))
+    in case alterr h m of
+      Nothing => digitToTree l
+      Just (r, m') => Deep l m r
+
+  ||| A lens on the rightmost element (if it exists)
+  alterr : (Functor f) => (x -> y -> f (Maybe (x, y))) -> HairyFingers x y -> Maybe (f (HairyFingers x y))
+  alterr _ Empty = Nothing
+  alterr f (Singleton x0 y1) = Just (maybeSingleton <$> f x0 y1)
+  alterr f (Deep l m (Digit1 x0 y1)) = let
+    g : Maybe (x, y) -> HairyFingers x y
+    g (Just (x0', y1')) = Deep l m (Digit1 x0' y1')
+    g Nothing = deepNoR l m
+    in Just (g <$> f x0 y1)
+  alterr f (Deep l m (Digit2 x0 y1 x2 y3)) = let
+    g : Maybe (x, y) -> Digit x y
+    g Nothing = Digit1 x0 y1
+    g (Just (x2', y3')) = Digit2 x0 y1 x2' y3'
+    in Just (Deep l m . g <$> f x2 y3)
 
 -- Could just implement this in terms of alterr with a constant functor
 viewr : HairyFingers x y -> Maybe (HairyFingers x y, x, y)
@@ -295,4 +307,56 @@ fromList = let
   in go
 
 
--- How best to do splitting? It could be a *mess* if done wrong!
+
+deepMaybeL : Maybe (Digit x y) -> HairyFingers x (Node x y) -> Digit x y -> HairyFingers x y
+deepMaybeL Nothing m r = deepNoL m r
+deepMaybeL (Just l) m r = Deep l m r
+
+deepMaybeR : Digit x y -> HairyFingers x (Node x y) -> Maybe (Digit x y) -> HairyFingers x y
+deepMaybeR l m Nothing = deepNoR l m
+deepMaybeR l m (Just r) = Deep l m r
+
+-- Should we test the left half first in the case of a digit2?
+splitDigit : (x -> Ordering) -> (y -> Ordering) -> Digit x y -> Either Bool (Maybe (Digit x y), Maybe (x,y), Maybe (Digit x y))
+splitDigit f g (Digit1 x0 y1) = case f x0 y1 of
+  LT => Left True
+  EQ => Right (Nothing, Just (x0, y1), Nothing)
+  GT => Left False
+splitDigit f g (Digit2 x0 y1 x2 y3) = case f x2 y3 of
+  LT => case f x0 y1 of
+    LT => Left True
+    EQ => Right (Nothing, Just (x0, y1), Just (Digit1 x2 y3))
+    GT => Right (Just (Digit1 x0 y1), Nothing, Just (Digit1 x2 y3))
+  EQ => Right (Just (Digit1 x0 y1), Just (x2, y3), Nothing)
+  GT => Left False
+
+-- This function sucks, in that we're descending into the structure twice.
+nodeSearch : (x -> y -> Ordering) -> x -> Node x y -> Ordering
+nodeSearch f x0 (Node2 y1 x2 y3) = case f x0 y1 of
+  LT => LT
+  EQ => EQ
+  GT => ?ns_0
+nodeSearch f x0 (Node3 y1 x2 y3 x4 y5) = ?ns_1
+
+splitNavigate : (x -> y -> Ordering) -> HairyFingers x y -> Either Bool (HairyFingers x y, Maybe (x,y), HairyFingers x y)
+splitNavigate f Empty = Left True
+splitNavigate f (Singleton x0 y1) = case f x0 y1 of
+  LT => Left True
+  EQ => Right (Empty, Just (x0, y1), Empty)
+  GT => Left False
+splitNavigate f (Deep l m r) = case splitDigit f r of
+  Right (t1, u, t2) => Right (deepMaybeR l m t1, u, maybeDigitToTree t2)
+  Left False => Left False
+  Left True => case splitNavigate (nodeSearch f) m of
+    Right (t1, u, t2) => ?sn
+    Left False => Right (deepNoR l m, Nothing, digitToTree r)
+    Left True => case splitDigit f l of
+      Right (t1, u, t2) => Right (maybeDigitToTree t1, u, deepMaybeL t2 m r)
+      Left False => Right (digitToTree l, Nothing, deepNoL m r)
+      Left True => Left True
+
+split : (x -> y -> Ordering) -> HairyFingers x y -> (HairyFingers x y, Maybe (x,y), HairyFingers x y)
+split f t = case splitNavigate f t of
+  Right a => a
+  Left True => (Empty, Nothing, t)
+  Left False => (t, Nothing, Empty)

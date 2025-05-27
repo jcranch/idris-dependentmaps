@@ -94,6 +94,19 @@ maybeDigitToTree Nothing = Empty
 maybeDigitToTree (Just d) = digitToTree d
 
 
+foldDigit : Monoid m => (x -> m) -> (y -> m) -> Digit x y -> m
+foldDigit f g (Digit1 x0 y1) = f x0 <+> g y1
+foldDigit f g (Digit2 x0 y1 x2 y3) = f x0 <+> g y1 <+> f x2 <+> g y3
+
+foldNode : Monoid m => (x -> m) -> (y -> m) -> Node x y -> m
+foldNode f g (Node2 y0 x1 y2) = g y0 <+> f x1 <+> g y2
+foldNode f g (Node3 y0 x1 y2 x3 y4) = g y0 <+> f x1 <+> g y2 <+> f x3 <+> g y4
+
+foldTree : Monoid m => (x -> m) -> (y -> m) -> HairyFingers x y -> m
+foldTree _ _ Empty = neutral
+foldTree f g (Singleton x0 y1) = f x0 <+> g y1
+foldTree f g (Deep l m r) = foldDigit f g l <+> foldTree f (foldNode f g) m <+> foldDigit f g r
+
 
 -- Could just implement lookup as adjust, valued in a constant functor
 

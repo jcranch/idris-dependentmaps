@@ -1,4 +1,3 @@
--- Could have longer digits...
 module Data.HairyFingerTree2
 
 
@@ -6,6 +5,8 @@ data Node : Type -> Type -> Type where
   Node2 : (y0 : y) -> (x1 : x) -> (y2 : y) -> Node x y
   Node3 : (y0 : y) -> (x1 : x) -> (y2 : y) -> (x3 : x) -> (y4 : y) -> Node x y
 
+-- Could have longer digits; I think the concatenation algorithm would
+-- get only a little more annoying to write
 data LeftEnd : (x : Type) -> (y : Type) -> Type where
   Left1 : (x0 : x) -> (y1 : y) -> LeftEnd x y
   Left2 : (x0 : x) -> (y1 : y) -> (x2 : x) -> (y3 : y) -> LeftEnd x y
@@ -98,7 +99,29 @@ alterl g (Lots (Left1 x0 y1) m r) = (\z => Lots (Left1 z y1) m r) <$> g x0
 alterl g (Lots (Left2 x0 y1 x2 y3) m r) = (\z => Lots (Left2 z y1 x2 y3) m r) <$> g x0
 
 
+alterl' : Functor f => (x -> f x) -> (x -> y -> f (Maybe (x, y))) -> Hairy x y -> f (Hairy x y)
+alterl' p _ (One x0) = One <$> p x0
+alterl' _ q (Two x0 y1 x2) = let
+  h : Maybe (x, y) -> Hairy x y
+  h (Just (x0', y1')) = Two x0' y1' x2
+  h Nothing = One x2
+  in h <$> q x0 y1
+alterl' p q (Lots (Left1 x0 y1) m r) = let
+  h : Maybe (x, y) -> Hairy x y
+  h (Just (x0', y1')) = Lots (Left1 x0' y1') m r
+  h Nothing = let
+    q : x -> Node x y -> (LeftEnd x y, Maybe (x, Node x y))
+    q x2 (Node3 y3 x4 y5 x6 y7) = (Left1 x2 y3, Just (x4, Node2 y5 x6 y7))
+    q x2 (Node2 y3 x4 y5) = (Left2 x2 y3 x4 y5, Nothing)
+    in ?e $ alterl' ?p1 q m
+  in h <$> q x0 y1
+alterl' _ q (Lots (Left2 x0 y1 x2 y3) m r) = let
+  h : Maybe (x, y) -> Hairy x y
+  h (Just (x0', y1')) = Lots (Left2 x0' y1' x2 y3) m r
+  h Nothing = Lots (Left1 x2 y3) m r
+  in h <$> q x0 y1
 
+{-
 mutual
   lotsMR : (m : Hairy x (Node x y)) -> (r : RightEnd x y) -> Hairy x y
   lotsMR = let
@@ -127,6 +150,8 @@ mutual
     h Nothing = Lots (Left1 x2 y3) m r
     h (Just (x0', y1')) = Lots (Left2 x0' y1' x2 y3) m r
     in Just (h <$> g x0 y1)
+-}
+
 
 {-
 -- alterr

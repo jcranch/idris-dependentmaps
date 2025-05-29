@@ -99,6 +99,7 @@ alterl g (Lots (Left1 x0 y1) m r) = (\z => Lots (Left1 z y1) m r) <$> g x0
 alterl g (Lots (Left2 x0 y1 x2 y3) m r) = (\z => Lots (Left2 z y1 x2 y3) m r) <$> g x0
 
 
+{-
 alterl' : Functor f
        => (x -> f x)
        -> (x -> y -> f (Maybe (x, y)))
@@ -114,20 +115,22 @@ alterl' p q (Lots (Left1 x0 y1) m r) = let
   h : Maybe (x, y) -> Hairy x y
   h (Just (x0', y1')) = Lots (Left1 x0' y1') m r
   h Nothing = let
-    s : x -> Node x y -> Compose (Either x) (Pair (LeftEnd x y)) (Maybe (x, Node x y))
-    s x2 (Node3 y3 x4 y5 x6 y7) = Compose (Right (Left1 x2 y3, Just (x4, Node2 y5 x6 y7)))
-    s x2 (Node2 y3 x4 y5) = Compose (Right (Left2 x2 y3 x4 y5, Nothing))
-    in case alterl' (Compose . Left) s m of
-      Compose (Left x2) => case r of
+    s : x -> Node x y -> (Either x . Pair (LeftEnd x y)) (Maybe (x, Node x y))
+    s x2 (Node3 y3 x4 y5 x6 y7) = (Right (Left1 x2 y3, Just (x4, Node2 y5 x6 y7)))
+    s x2 (Node2 y3 x4 y5) = (Right (Left2 x2 y3 x4 y5, Nothing))
+    in case alterl' Left s m of
+      Left x2 => case r of
         Right1 y3 x4 => Two x2 y3 x4
         Right2 y3 x4 y5 x6 => Lots (Left1 x2 y3) (One x4) (Right1 y5 x6)
-      Compose (Right (l', m')) => Lots l' m' r
+      Right (l', m') => Lots l' m' r
   in h <$> q x0 y1
 alterl' _ q (Lots (Left2 x0 y1 x2 y3) m r) = let
   h : Maybe (x, y) -> Hairy x y
   h (Just (x0', y1')) = Lots (Left2 x0' y1' x2 y3) m r
   h Nothing = Lots (Left1 x2 y3) m r
   in h <$> q x0 y1
+-}
+
 
 {-
 mutual

@@ -28,6 +28,9 @@ three x0 y1 x2 y3 x4 = Lots (Left1 x0 y1) (One x2) (Right1 y3 x4)
 four : x -> y -> x -> y -> x -> y -> x -> Hairy x y
 four x0 y1 x2 y3 x4 y5 x6 = Lots (Left2 x0 y1 x2 y3) (One x4) (Right1 y5 x6)
 
+five : x -> y -> x -> y -> x -> y -> x -> y -> x -> Hairy x y
+five x0 y1 x2 y3 x4 y5 x6 y7 x8 = Lots (Left2 x0 y1 x2 y3) (One x4) (Right2 y5 x6 y7 x8)
+
 export
 appendl : x -> y -> Hairy x y -> Hairy x y
 appendl x0 y1 (One x2) = Two x0 y1 x2
@@ -41,6 +44,12 @@ appendl2 x0 y1 x2 y3 (Two x4 y5 x6) = four x0 y1 x2 y3 x4 y5 x6
 appendl2 x0 y1 x2 y3 (Lots (Left1 x4 y5) m r) = Lots (Left1 x0 y1) (appendl x2 (Node2 y3 x4 y5) m) r
 appendl2 x0 y1 x2 y3 (Lots (Left2 x4 y5 x6 y7) m r) = Lots (Left2 x0 y1 x2 y3) (appendl x4 (Node2 y5 x6 y7) m) r
 
+appendl3 : x -> y -> x -> y -> x -> y -> Hairy x y -> Hairy x y
+appendl3 x0 y1 x2 y3 x4 y5 (One x6) = four x0 y1 x2 y3 x4 y5 x6
+appendl3 x0 y1 x2 y3 x4 y5 (Two x6 y7 x8) = five x0 y1 x2 y3 x4 y5 x6 y7 x8
+appendl3 x0 y1 x2 y3 x4 y5 (Lots (Left1 x6 y7) m r) = Lots (Left1 x0 y1) (appendl x2 (Node3 y3 x4 y5 x6 y7) m) r
+appendl3 x0 y1 x2 y3 x4 y5 (Lots (Left2 x6 y7 x8 y9) m r) = Lots (Left2 x0 y1 x2 y3) (appendl x4 (Node3 y5 x6 y7 x8 y9) m) r
+
 export
 appendr : Hairy x y -> y -> x -> Hairy x y
 appendr (One x0) y1 x2 = Two x0 y1 x2
@@ -53,6 +62,13 @@ appendr2 (One x0) y1 x2 y3 x4 = three x0 y1 x2 y3 x4
 appendr2 (Two x0 y1 x2) y3 x4 y5 x6 = four x0 y1 x2 y3 x4 y5 x6
 appendr2 (Lots l m (Right1 y0 x1)) y2 x3 y4 x5 = Lots l (appendr m (Node2 y0 x1 y2) x3) (Right1 y4 x5)
 appendr2 (Lots l m (Right2 y0 x1 y2 x3)) y4 x5 y6 x7 = Lots l (appendr m (Node2 y0 x1 y2) x3) (Right2 y4 x5 y6 x7)
+
+appendr3 : Hairy x y -> y -> x -> y -> x -> y -> x -> Hairy x y
+appendr3 (One x0) y1 x2 y3 x4 y5 x6 = four x0 y1 x2 y3 x4 y5 x6
+appendr3 (Two x0 y1 x2) y3 x4 y5 x6 y7 x8 = five x0 y1 x2 y3 x4 y5 x6 y7 x8
+appendr3 (Lots l m (Right1 y0 x1)) y2 x3 y4 x5 y6 x7 = Lots l (appendr m (Node3 y0 x1 y2 x3 y4) x5) (Right1 y6 x7)
+appendr3 (Lots l m (Right2 y0 x1 y2 x3)) y4 x5 y6 x7 y8 x9 = Lots l (appendr m (Node3 y0 x1 y2 x3 y4) x5) (Right2 y6 x7 y8 x9)
+
 
 export
 concat : Hairy x y -> y -> Hairy x y -> Hairy x y
@@ -175,6 +191,11 @@ mutual
     in Just (h <$> g x0 y1)
 -}
 
+{-
+-- alterr
+
+-}
+
 
 Semigroup (Hairy x ()) where
   t1 <+> t2 = concat t1 () t2
@@ -185,25 +206,22 @@ Semigroup (Hairy x ()) where
 splitUnit : (x -> Ordering) -> () -> (Maybe (Hairy x ()), Maybe x, Maybe (Hairy x ()))
 splitUnit _ _ = (Nothing, Nothing, Nothing)
 
+-- splitDigit
+
 split' : (y -> Hairy x y)
       -> ((x -> Ordering) -> y -> (Maybe (Hairy x y), Maybe x, Maybe (Hairy x y)))
-      -> (x -> Ordering) -> Hairy x y -> (Maybe (Hairy x y), Maybe x, Maybe (Hairy x y))
+      -> (x -> Ordering) -> Hairy x y -> Either Bool (Maybe (Hairy x y), Maybe x, Maybe (Hairy x y))
 split' j h c (One x0) = case c x0 of
-  LT => (Nothing, Nothing, Just (One x0))
-  EQ => (Nothing, Just x0, Nothing)
-  GT => (Just (One x0), Nothing, Nothing)
-split' j h c t@(Two x0 y1 x2) = case c x0 of
-  LT => (Nothing, Nothing, t)
-  EQ => (Nothing, Just x0, Just (?got_to_concat y1 x2))
+  LT => Left False
+  EQ => Right (Nothing, Just x0, Nothing)
+  GT => Left True
+split' j h c (Two x0 y1 x2) = case c x0 of
+  LT => Left False
+  EQ => Right (Nothing, Just x0, Just (?got_to_concat y1 x2))
   GT => case c x2 of
     LT => let
       (u, z, v) = h c y1
-      in (?concat_this x0 u, z, ?concat_again v x2)
-    EQ => (Just (?also_must_concat x0 y1), Just x2, Nothing)
-    GT => (t, Nothing, Nothing)
-split' j h c (Lots l m r) = ?w2
-
-{-
--- alterr
-
--}
+      in Right (?concat_this x0 u, z, ?concat_again v x2)
+    EQ => Right (Just (?also_must_concat x0 y1), Just x2, Nothing)
+    GT => Left True
+split' j h c (Lots l m r) = ?w2 -- need a fairly cautious approach: want to check digits early but return to them

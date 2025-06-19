@@ -84,6 +84,14 @@ appendr3 (Lots l m (Right3 x0 y1 x2 y3 x4 y5)) x6 y7 x8 y9 xa yb = Lots l (appen
 appendr4 : Hairy x y -> x -> y -> x -> y -> x -> y -> x -> y -> Hairy x y
 appendr4 m x0 y1 x2 y3 x4 y5 x6 y7 = appendr2 (appendr2 m x0 y1 x2 y3) x4 y5 x6 y7
 
+appendLeftEnd : LeftEnd x y -> Hairy x y -> Hairy x y
+appendLeftEnd (Left1 y0 x1) t = appendl y0 x1 t
+appendLeftEnd (Left2 y0 x1 y2 x3) t = appendl2 y0 x1 y2 x3 t
+
+appendRightEnd : Hairy x y -> RightEnd x y -> Hairy x y
+appendRightEnd t (Right2 x0 y1 x2 y3) = appendr2 t x0 y1 x2 y3
+appendRightEnd t (Right3 x0 y1 x2 y3 x4 y5) = appendr3 t x0 y1 x2 y3 x4 y5
+
 
 empty : Hairy x ()
 empty = Zero ()
@@ -209,6 +217,11 @@ viewr m = let
     Right ((x0, y1), m') => (Just (m', x0), y1)
 
 
+nodeToTree : Node x y -> Hairy x y
+nodeToTree (Node2 y0 x1 y2) = One y0 x1 y2
+nodeToTree (Node3 y0 x1 y2 x3 y4) = Two y0 x1 y2 x3 y4
+
+
 splitL : ((x -> Ordering) -> y -> (Hairy x y, Maybe x, Hairy x y))
       -> (x -> Ordering) -> LeftEnd x y -> Maybe (Hairy x y, Maybe x, Hairy x y -> Hairy x y)
 splitL h p (Left1 y0 x1) = case p x1 of
@@ -259,6 +272,31 @@ splitR h p (Right3 x0 y1 x2 y3 x4 y5) = case p x0 of
       (l, m, r) = h p y5
       in Just (\z => concat1 (appendr2 z x0 y1 x2 y3) x4 l, m, r)
 
+
+splitNode : ((x -> Ordering) -> y -> (Hairy x y, Maybe x, Hairy x y))
+         -> (x -> Ordering) -> Node x y -> (Hairy x y, Maybe x, Hairy x y)
+splitNode h p (Node2 y0 x1 y2) = case p x1 of
+  LT => let
+    (l, m, r) = h p y0
+    in (l, m, appendr r x1 y2)
+  EQ => (Zero y0, Just x1, Zero y2)
+  GT => let
+    (l, m, r) = h p y2
+    in (appendl y0 x1 l, m, r)
+splitNode h p (Node3 y0 x1 y2 x3 y4) = case p x1 of
+  LT => let
+    (l, m, r) = h p y0
+    in (l, m, appendr2 r x1 y2 x3 y4)
+  EQ => (Zero y0, Just x1, One y2 x3 y4)
+  GT => case p x3 of
+    LT => let
+      (l, m, r) = h p y2
+      in (appendl y0 x1 l, m, appendr r x3 y4)
+    EQ => (One y0 x1 y2, Just x3, Zero y4)
+    GT => let
+      (l, m, r) = h p y4
+      in (appendl2 y0 x1 y2 x3 l, m, r)
+
 split : ((x -> Ordering) -> y -> (Hairy x y, Maybe x, Hairy x y))
      -> (x -> Ordering) -> Hairy x y -> (Hairy x y, Maybe x, Hairy x y)
 split h p (Zero y0) = h p y0
@@ -305,5 +343,7 @@ split h p (Lots l m r) = case splitL h p l of
   Just (l', u, g) => ?z
   Nothing => case splitR h p r of
     Just (f, u, r') => ?y
-    Nothing => ?x
+    Nothing => let
+      (l'', u, r'') = split (splitNode h) p m
+      in ?wtf
 
